@@ -10,6 +10,7 @@ export default function Dashboard() {
   useEffect(() => {
     // Check if user is authenticated and verify token
     const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+    
     if (!token) {
       navigate('/signin')
       return
@@ -19,10 +20,22 @@ export default function Dashboard() {
     api.get('/auth/profile')
       .then((response) => {
         setUser(response.data.user)
+        // Check if user has completed company setup
+        return api.get('/company/profile')
       })
-      .catch(() => {
-        // Token is invalid, redirect to sign in
-        navigate('/signin')
+      .then((companyResponse) => {
+        // Company exists, user can stay on dashboard
+        // Optionally set localStorage for quick checks
+        localStorage.setItem('setupComplete', 'true')
+      })
+      .catch((error) => {
+        if (error.response?.status === 404) {
+          // No company profile found, redirect to setup
+          navigate('/company-setup')
+        } else {
+          // Other error, perhaps token invalid
+          navigate('/signin')
+        }
       })
       .finally(() => {
         setLoading(false)
@@ -48,7 +61,27 @@ export default function Dashboard() {
           Welcome{user ? `, ${user.name}` : ''} to your BillMaster dashboard!
         </p>
         <div className="mt-8 p-6 bg-white rounded-lg shadow">
-          <p className="text-gray-700">Your dashboard content will go here.</p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <p className="text-gray-700">Your dashboard content will go here.</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => navigate('/cash-in')}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-white font-semibold shadow-sm hover:bg-emerald-700 transition"
+              >
+                <span>➕</span>
+                <span>Cash In</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/data-entry')}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white font-semibold shadow-sm hover:bg-blue-700 transition"
+              >
+                <span>🧾</span>
+                <span>Data Entry</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

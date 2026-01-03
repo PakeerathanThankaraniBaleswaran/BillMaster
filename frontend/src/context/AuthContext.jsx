@@ -6,10 +6,14 @@ const AuthContext = createContext(null)
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [setupComplete, setSetupComplete] = useState(false)
 
   useEffect(() => {
     // Check if user is logged in on mount
     const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+    const setup = localStorage.getItem('setupComplete') === 'true'
+    setSetupComplete(setup)
+    
     if (token) {
       // Fetch user profile
       api.get('/auth/profile')
@@ -20,6 +24,7 @@ export const AuthProvider = ({ children }) => {
           // Token is invalid, clear it
           localStorage.removeItem('token')
           sessionStorage.removeItem('token')
+          setSetupComplete(false)
         })
         .finally(() => {
           setLoading(false)
@@ -56,6 +61,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     loading,
+    setupComplete,
     login,
     logout,
     isAuthenticated: !!user,

@@ -57,8 +57,11 @@ export default function SignUpPage() {
         sessionStorage.setItem('token', token)
       }
 
-      // Redirect to dashboard or home
-      navigate('/dashboard')
+      // Ensure setup is not complete
+      localStorage.setItem('setupComplete', 'false')
+
+      // Redirect to company setup page
+      window.location.href = '/company-setup'
     } catch (err) {
       // Error structure: err.response.data.message or err.message
       setError(err.response?.data?.message || err.message || 'Registration failed. Please try again.')

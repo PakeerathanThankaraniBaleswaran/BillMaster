@@ -40,3 +40,9 @@ api.interceptors.response.use(
 
 export default api
 
+// Company API functions
+export const companyAPI = {
+  setupCompany: (companyData) => api.post('/company/setup', companyData),
+  getCompanyProfile: () => api.get('/company/profile'),
+}
+
