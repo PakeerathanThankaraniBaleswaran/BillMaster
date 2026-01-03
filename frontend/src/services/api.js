@@ -46,3 +46,9 @@ export const companyAPI = {
   getCompanyProfile: () => api.get('/company/profile'),
 }
 
+// Cash In API functions
+export const cashInAPI = {
+  createEntry: (payload) => api.post('/cash-in', payload),
+  getSummary: () => api.get('/cash-in/summary'),
+}
+

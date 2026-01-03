@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { cashInAPI } from '../services/api'
 
 const denominations = [
   { label: '5000', value: 5000 },
@@ -25,13 +26,39 @@ const todayString = new Intl.DateTimeFormat('en-GB', {
   year: 'numeric',
   month: 'long',
   day: 'numeric',
-}).format(new Date('2026-01-03'))
+}).format(new Date())
 
 export default function CashIn() {
   const [counts, setCounts] = useState(
     () => denominations.reduce((acc, d) => ({ ...acc, [d.value]: 0 }), {})
   )
   const [notes, setNotes] = useState('')
+  const [summary, setSummary] = useState({
+    totalCashToday: 0,
+    entryCount: 0,
+    lastEntryAmount: 0,
+    lastEntryTime: null,
+  })
+
+  useEffect(() => {
+    const fetchSummary = async () => {
+      try {
+        const res = await cashInAPI.getSummary()
+        const payload = res.data || res
+        const data = payload.data || payload
+        setSummary({
+          totalCashToday: data.totalCashToday || 0,
+          entryCount: data.entryCount || 0,
+          lastEntryAmount: data.lastEntry?.totalAmount || 0,
+          lastEntryTime: data.lastEntry?.createdAt || null,
+        })
+      } catch (error) {
+        console.error('Failed to load cash summary', error)
+      }
+    }
+
+    fetchSummary()
+  }, [])
 
   const totals = useMemo(() => {
     const perRow = denominations.map((d) => ({
@@ -53,9 +80,31 @@ export default function CashIn() {
     setNotes('')
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    alert('Entry submitted. (Stub) Connect to backend when ready.')
+
+    try {
+      const payload = { denominations: counts, notes }
+      const res = await cashInAPI.createEntry(payload)
+      const body = res.data || res
+      if (body.success) {
+        alert('Cash entry saved')
+      }
+      setCounts(denominations.reduce((acc, d) => ({ ...acc, [d.value]: 0 }), {}))
+      setNotes('')
+      const summaryRes = await cashInAPI.getSummary()
+      const payload2 = summaryRes.data || summaryRes
+      const data2 = payload2.data || payload2
+      setSummary({
+        totalCashToday: data2.totalCashToday || 0,
+        entryCount: data2.entryCount || 0,
+        lastEntryAmount: data2.lastEntry?.totalAmount || 0,
+        lastEntryTime: data2.lastEntry?.createdAt || null,
+      })
+    } catch (error) {
+      console.error('Cash entry save failed', error)
+      alert(error.response?.data?.message || 'Failed to save cash entry')
+    }
   }
 
   return (
@@ -77,20 +126,27 @@ export default function CashIn() {
           </div>
         </header>
 
-        <div className="grid md:grid-cols-3 gap-4 mb-6">
-          <div className="rounded-xl border border-emerald-100 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white p-5 shadow-sm">
-            <p className="text-sm flex items-center gap-2">⬆️ Total Cash Today</p>
-            <p className="text-3xl font-semibold mt-2">{formatCurrency(totals.grandTotal)}</p>
+          <div className="grid md:grid-cols-3 gap-4 mb-6">
+            <div className="rounded-xl border border-emerald-100 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white p-5 shadow-sm">
+              <p className="text-sm flex items-center gap-2">⬆️ Total Cash Today</p>
+              <p className="text-3xl font-semibold mt-2">{formatCurrency(summary.totalCashToday)}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-sm flex items-center gap-2 text-slate-600">⏺️ Total Entries</p>
+              <p className="text-3xl font-semibold mt-2">{summary.entryCount}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-sm flex items-center gap-2 text-slate-600">🔄 Last Entry</p>
+              <p className="text-lg font-semibold mt-2 text-slate-800">
+                {summary.lastEntryAmount > 0 ? formatCurrency(summary.lastEntryAmount) : 'No entries yet'}
+              </p>
+              {summary.lastEntryTime && (
+                <p className="text-xs text-slate-500 mt-1">
+                  {new Date(summary.lastEntryTime).toLocaleString()}
+                </p>
+              )}
+            </div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm flex items-center gap-2 text-slate-600">⏺️ Total Entries</p>
-            <p className="text-3xl font-semibold mt-2">0</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm flex items-center gap-2 text-slate-600">🔄 Last Entry</p>
-            <p className="text-lg font-semibold mt-2 text-slate-800">No entries yet</p>
-          </div>
-        </div>
 
         <div className="bg-white rounded-2xl shadow-md border border-slate-100 overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
