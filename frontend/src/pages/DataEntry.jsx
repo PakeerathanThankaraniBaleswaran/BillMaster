@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { inventoryAPI } from '../services/api'
 
 const emptyForm = {
   company: '',
@@ -10,9 +11,9 @@ const emptyForm = {
 }
 
 const formatCurrency = (value) =>
-  value.toLocaleString('en-US', {
+  value.toLocaleString('en-LK', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'LKR',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
@@ -20,6 +21,7 @@ const formatCurrency = (value) =>
 export default function DataEntry() {
   const [form, setForm] = useState(emptyForm)
   const [entries, setEntries] = useState([])
+  const [loading, setLoading] = useState(true)
 
   const totals = useMemo(() => {
     const totalProducts = entries.length
@@ -43,7 +45,23 @@ export default function DataEntry() {
     }))
   }
 
-  const handleSubmit = (e) => {
+  useEffect(() => {
+    const loadInventory = async () => {
+      try {
+        const res = await inventoryAPI.getInventory()
+        const payload = res.data || res
+        const data = payload.data || payload
+        setEntries(data.items || [])
+      } catch (error) {
+        console.error('Failed to load inventory', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadInventory()
+  }, [])
+
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.company || !form.product) {
       alert('Please fill company and product name')
@@ -53,10 +71,29 @@ export default function DataEntry() {
       alert('Quantity must be greater than zero')
       return
     }
-    const newEntry = { ...form, profit, profitPct }
-    setEntries((prev) => [...prev, newEntry])
-    alert('Entry saved!')
-    setForm(emptyForm)
+
+    try {
+      const res = await inventoryAPI.createItem({
+        company: form.company,
+        product: form.product,
+        variant: form.variant,
+        quantity: form.quantity,
+        purchasePrice: form.purchasePrice,
+        sellingPrice: form.sellingPrice,
+      })
+      const body = res.data || res
+      const item = body.data?.item || body.item
+      if (item) {
+        setEntries((prev) => [item, ...prev])
+        alert('Entry saved!')
+        setForm(emptyForm)
+      } else {
+        alert('Saved, but could not read response item.')
+      }
+    } catch (error) {
+      console.error('Failed to save item', error)
+      alert(error.response?.data?.message || 'Failed to save item')
+    }
   }
 
   const handleReset = () => {
@@ -211,15 +248,19 @@ export default function DataEntry() {
                     <th className="px-4 py-2 text-left">Product</th>
                     <th className="px-4 py-2 text-left">Variant</th>
                     <th className="px-4 py-2 text-right">Qty</th>
-                    <th className="px-4 py-2 text-right">Purchase $</th>
-                    <th className="px-4 py-2 text-right">Selling $</th>
+                    <th className="px-4 py-2 text-right">Purchase (LKR)</th>
+                    <th className="px-4 py-2 text-right">Selling (LKR)</th>
                     <th className="px-4 py-2 text-right">Profit</th>
                     <th className="px-4 py-2 text-right">Profit %</th>
                     <th className="px-4 py-2 text-right">Stock Value</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {entries.length === 0 ? (
+                  {loading ? (
+                    <tr>
+                      <td colSpan="9" className="px-4 py-6 text-center text-slate-500">Loading...</td>
+                    </tr>
+                  ) : entries.length === 0 ? (
                     <tr>
                       <td colSpan="9" className="px-4 py-8 text-center text-slate-500">
                         No products found. Add your first product to get started.
@@ -227,7 +268,7 @@ export default function DataEntry() {
                     </tr>
                   ) : (
                     entries.map((row, idx) => (
-                      <tr key={`${row.product}-${idx}`} className="border-t border-slate-100">
+                      <tr key={`${row._id || row.product}-${idx}`} className="border-t border-slate-100">
                         <td className="px-4 py-2">{row.company || '—'}</td>
                         <td className="px-4 py-2">{row.product}</td>
                         <td className="px-4 py-2">{row.variant || '—'}</td>
@@ -235,7 +276,7 @@ export default function DataEntry() {
                         <td className="px-4 py-2 text-right">{formatCurrency(row.purchasePrice)}</td>
                         <td className="px-4 py-2 text-right">{formatCurrency(row.sellingPrice)}</td>
                         <td className="px-4 py-2 text-right text-emerald-700">{formatCurrency(row.profit)}</td>
-                        <td className="px-4 py-2 text-right text-emerald-700">{row.profitPct.toFixed(1)}%</td>
+                        <td className="px-4 py-2 text-right text-emerald-700">{(row.profitPct || 0).toFixed(1)}%</td>
                         <td className="px-4 py-2 text-right">{formatCurrency(row.quantity * row.sellingPrice)}</td>
                       </tr>
                     ))

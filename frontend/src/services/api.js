@@ -52,3 +52,9 @@ export const cashInAPI = {
   getSummary: () => api.get('/cash-in/summary'),
 }
 
+// Inventory / Data Entry API functions
+export const inventoryAPI = {
+  createItem: (payload) => api.post('/inventory', payload),
+  getInventory: () => api.get('/inventory'),
+}
+
