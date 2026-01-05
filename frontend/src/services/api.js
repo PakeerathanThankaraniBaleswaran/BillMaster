@@ -58,3 +58,33 @@ export const inventoryAPI = {
   getInventory: () => api.get('/inventory'),
 }
 
+// Product API functions
+export const productAPI = {
+  list: () => api.get('/products'),
+  create: (payload) => api.post('/products', payload),
+  update: (id, payload) => api.put(`/products/${id}`, payload),
+  remove: (id) => api.delete(`/products/${id}`),
+}
+
+// Customer API functions
+export const customerAPI = {
+  list: () => api.get('/customers'),
+  create: (payload) => api.post('/customers', payload),
+  update: (id, payload) => api.put(`/customers/${id}`, payload),
+  remove: (id) => api.delete(`/customers/${id}`),
+}
+
+// Invoice API functions
+export const invoiceAPI = {
+  list: () => api.get('/invoices'),
+  get: (id) => api.get(`/invoices/${id}`),
+  create: (payload) => api.post('/invoices', payload),
+  update: (id, payload) => api.put(`/invoices/${id}`, payload),
+  remove: (id) => api.delete(`/invoices/${id}`),
+}
+
+// Summary API functions
+export const summaryAPI = {
+  get: () => api.get('/summary'),
+}
+

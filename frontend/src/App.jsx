@@ -7,6 +7,7 @@ import CashIn from './pages/CashIn'
 import AuthCallback from './pages/AuthCallback'
 import CompanySetup from './pages/CompanySetup'
 import DataEntry from './pages/DataEntry'
+import Invoices from './pages/Invoices'
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/cash-in" element={<CashIn />} />
           <Route path="/data-entry" element={<DataEntry />} />
+          <Route path="/invoices" element={<Invoices />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -1,0 +1,39 @@
+import mongoose from 'mongoose'
+
+const invoiceItemSchema = new mongoose.Schema(
+  {
+    product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', default: null },
+    description: { type: String, required: true, trim: true },
+    quantity: { type: Number, required: true, min: 0 },
+    price: { type: Number, required: true, min: 0 },
+    total: { type: Number, required: true, min: 0 },
+  },
+  { _id: false }
+)
+
+const invoiceSchema = new mongoose.Schema(
+  {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    customer: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true },
+    invoiceNumber: { type: String, required: true, trim: true },
+    status: {
+      type: String,
+      enum: ['draft', 'sent', 'paid', 'overdue'],
+      default: 'draft',
+    },
+    invoiceDate: { type: Date, default: Date.now },
+    dueDate: { type: Date, default: null },
+    items: { type: [invoiceItemSchema], default: [] },
+    subtotal: { type: Number, required: true, min: 0 },
+    total: { type: Number, required: true, min: 0 },
+    currency: { type: String, default: 'LKR' },
+    notes: { type: String, trim: true, default: '' },
+  },
+  { timestamps: true }
+)
+
+invoiceSchema.index({ user: 1, invoiceNumber: 1 }, { unique: true })
+
+const Invoice = mongoose.model('Invoice', invoiceSchema)
+
+export default Invoice
