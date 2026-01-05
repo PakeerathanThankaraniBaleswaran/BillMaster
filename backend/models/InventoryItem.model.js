@@ -48,6 +48,11 @@ const inventoryItemSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    minQuantity: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     profit: {
       type: Number,
       default: 0,

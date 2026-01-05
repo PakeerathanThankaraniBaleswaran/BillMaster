@@ -13,6 +13,7 @@ export const createInventoryItem = asyncHandler(async (req, res, next) => {
     quantity,
     purchasePrice,
     sellingPrice,
+    minQuantity = 0,
     purchaseQuantityLabel = '',
     purchaseUnit = 'number',
   } = req.body || {}
@@ -29,6 +30,9 @@ export const createInventoryItem = asyncHandler(async (req, res, next) => {
   if (!Number.isFinite(sellingPrice) || sellingPrice < 0) {
     return next(new ErrorResponse('Selling price must be zero or greater', 400))
   }
+  if (!Number.isFinite(minQuantity) || minQuantity < 0) {
+    return next(new ErrorResponse('Minimum quantity must be zero or greater', 400))
+  }
 
   const item = await InventoryItem.create({
     user: req.user.id,
@@ -38,6 +42,7 @@ export const createInventoryItem = asyncHandler(async (req, res, next) => {
     quantity,
     purchasePrice,
     sellingPrice,
+    minQuantity,
     purchaseQuantityLabel,
     purchaseUnit,
   })
@@ -59,6 +64,18 @@ export const getInventory = asyncHandler(async (req, res) => {
   const inventoryValue = items.reduce((sum, e) => sum + (e.quantity || 0) * (e.sellingPrice || 0), 0)
   const companies = new Set(items.map((e) => e.company || '')).size
 
+  const lowStockItems = items
+    .filter((e) => Number(e.minQuantity || 0) > 0 && Number(e.quantity || 0) <= Number(e.minQuantity || 0))
+    .map((e) => ({
+      _id: e._id,
+      company: e.company,
+      product: e.product,
+      variant: e.variant,
+      quantity: e.quantity,
+      minQuantity: e.minQuantity,
+    }))
+  const lowStockCount = lowStockItems.length
+
   return res.status(200).json({
     success: true,
     data: {
@@ -68,6 +85,8 @@ export const getInventory = asyncHandler(async (req, res) => {
         totalStock,
         inventoryValue,
         companies,
+        lowStockCount,
+        lowStockItems,
       },
     },
   })
@@ -88,6 +107,7 @@ export const updateInventoryItem = asyncHandler(async (req, res, next) => {
     quantity,
     purchasePrice,
     sellingPrice,
+    minQuantity,
     purchaseQuantityLabel,
     purchaseUnit,
   } = req.body || {}
@@ -117,6 +137,13 @@ export const updateInventoryItem = asyncHandler(async (req, res, next) => {
       return next(new ErrorResponse('Selling price must be zero or greater', 400))
     }
     item.sellingPrice = sellingPrice
+  }
+
+  if (minQuantity != null) {
+    if (!Number.isFinite(minQuantity) || minQuantity < 0) {
+      return next(new ErrorResponse('Minimum quantity must be zero or greater', 400))
+    }
+    item.minQuantity = minQuantity
   }
 
   await item.save()

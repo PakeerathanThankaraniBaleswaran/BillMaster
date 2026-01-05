@@ -171,10 +171,19 @@ export default function Invoices() {
       })
       const body = res.data || res
       const invoice = body.data?.invoice || body.invoice
+      const lowStock = body.warnings?.lowStock
       if (invoice) {
         setInvoices((prev) => [invoice, ...prev])
         setShowModal(false)
         resetForm()
+
+        if (Array.isArray(lowStock) && lowStock.length) {
+          const msg = lowStock
+            .slice(0, 6)
+            .map((i) => `${i.product}${i.variant ? ` (${i.variant})` : ''} — ${i.quantity} (min ${i.minQuantity})`)
+            .join('\n')
+          alert(`Low stock alert:\n${msg}${lowStock.length > 6 ? '\n…' : ''}`)
+        }
       }
     } catch (error) {
       alert(error.response?.data?.message || 'Failed to create invoice')

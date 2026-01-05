@@ -11,6 +11,7 @@ const emptyForm = {
   purchaseUnit: 'number',
   purchasePrice: 0,
   sellingPrice: 0,
+  minQuantity: 0,
 }
 
 const formatCurrency = (value) =>
@@ -28,6 +29,7 @@ export default function DataEntry() {
   const [saving, setSaving] = useState(false)
   const [query, setQuery] = useState('')
   const [editingId, setEditingId] = useState(null)
+  const [lowStockItems, setLowStockItems] = useState([])
 
   const totals = useMemo(() => {
     const totalProducts = entries.length
@@ -66,6 +68,7 @@ export default function DataEntry() {
         const payload = res.data || res
         const data = payload.data || payload
         setEntries(data.items || [])
+        setLowStockItems(data.summary?.lowStockItems || [])
       } catch (error) {
         console.error('Failed to load inventory', error)
       } finally {
@@ -101,6 +104,7 @@ export default function DataEntry() {
         quantity: quantityNumber,
         purchasePrice: form.purchasePrice,
         sellingPrice: form.sellingPrice,
+        minQuantity: Number(form.minQuantity) || 0,
         purchaseQuantityLabel: label,
         purchaseUnit: form.purchaseUnit,
       }
@@ -113,8 +117,28 @@ export default function DataEntry() {
 
       if (item) {
         setEntries((prev) => {
-          if (editingId) return prev.map((e) => (e._id === editingId ? item : e))
-          return [item, ...prev]
+          const next = editingId
+            ? prev.map((e) => (e._id === editingId ? item : e))
+            : [item, ...prev]
+
+          setLowStockItems(
+            next
+              .filter(
+                (e) =>
+                  Number(e.minQuantity || 0) > 0 &&
+                  Number(e.quantity || 0) <= Number(e.minQuantity || 0)
+              )
+              .map((e) => ({
+                _id: e._id,
+                company: e.company,
+                product: e.product,
+                variant: e.variant,
+                quantity: e.quantity,
+                minQuantity: e.minQuantity,
+              }))
+          )
+
+          return next
         })
         reset()
       } else {
@@ -123,6 +147,7 @@ export default function DataEntry() {
         const payload2 = reload.data || reload
         const data2 = payload2.data || payload2
         setEntries(data2.items || [])
+        setLowStockItems(data2.summary?.lowStockItems || [])
         reset()
       }
     } catch (error) {
@@ -208,6 +233,14 @@ export default function DataEntry() {
         render: (r) => formatCurrency((Number(r?.quantity || 0) * Number(r?.sellingPrice || 0)) || 0),
       },
       {
+        key: 'minQuantity',
+        header: 'Min',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.minQuantity ?? 0),
+        render: (r) => Number(r?.minQuantity || 0) || '—',
+      },
+      {
         key: 'actions',
         header: 'Actions',
         align: 'right',
@@ -226,6 +259,7 @@ export default function DataEntry() {
                   purchaseUnit: row.purchaseUnit || 'number',
                   purchasePrice: Number(row.purchasePrice || 0),
                   sellingPrice: Number(row.sellingPrice || 0),
+                  minQuantity: Number(row.minQuantity || 0),
                 })
               }}
             >
@@ -239,6 +273,7 @@ export default function DataEntry() {
                 try {
                   await inventoryAPI.removeItem(row._id)
                   setEntries((prev) => prev.filter((e) => e._id !== row._id))
+                  setLowStockItems((prev) => prev.filter((e) => e._id !== row._id))
                   if (editingId === row._id) reset()
                 } catch (err) {
                   alert(err?.response?.data?.message || err?.message || 'Failed to delete item')
@@ -256,6 +291,14 @@ export default function DataEntry() {
 
   return (
     <div className="space-y-6">
+      {lowStockItems.length ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="font-semibold">Low stock alert</div>
+          <div className="mt-1 text-amber-800">
+            {lowStockItems.length} item(s) are at or below the minimum limit.
+          </div>
+        </div>
+      ) : null}
       <header className="flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-wider text-gray-500">Inventory</p>
@@ -340,6 +383,17 @@ export default function DataEntry() {
                     </select>
                   </div>
                 </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-slate-700">Minimum Limit</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="input-field"
+                      value={form.minQuantity}
+                      onChange={(e) => handleChange('minQuantity', e.target.value)}
+                      placeholder="0"
+                    />
+                  </div>
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-slate-700">Purchase Price</label>
                   <input

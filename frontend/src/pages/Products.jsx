@@ -1,240 +1,147 @@
 import { useEffect, useMemo, useState } from 'react'
-import { productAPI } from '../services/api'
+import { inventoryAPI } from '../services/api'
 import DataTable from '../components/ui/DataTable'
+
+const formatCurrency = (value) =>
+  value.toLocaleString('en-LK', {
+    style: 'currency',
+    currency: 'LKR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
 
 export default function Products() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [products, setProducts] = useState([])
+  const [items, setItems] = useState([])
+  const [lowStockItems, setLowStockItems] = useState([])
   const [query, setQuery] = useState('')
-  const [editingId, setEditingId] = useState(null)
-
-  const [form, setForm] = useState({
-    name: '',
-    sku: '',
-    price: '',
-    description: '',
-  })
 
   const columns = useMemo(
     () => [
-      { key: 'name', header: 'Name', sortable: true },
-      { key: 'sku', header: 'SKU', sortable: true },
+      { key: 'company', header: 'Company', sortable: true },
+      { key: 'product', header: 'Product', sortable: true },
+      { key: 'variant', header: 'Variant', sortable: true, render: (r) => r.variant || '—' },
       {
-        key: 'price',
-        header: 'Price',
+        key: 'purchaseQuantityLabel',
+        header: 'Purchase Qty',
         sortable: true,
         align: 'right',
-        sortValue: (r) => Number(r?.price ?? 0),
-        render: (r) => {
-          const n = Number(r?.price)
-          return Number.isFinite(n) ? n.toFixed(2) : '—'
-        },
+        render: (r) => r.purchaseQuantityLabel || r.quantity,
       },
-      { key: 'description', header: 'Description' },
       {
-        key: 'actions',
-        header: 'Actions',
+        key: 'purchasePrice',
+        header: 'Purchase',
+        sortable: true,
         align: 'right',
-        render: (row) => (
-          <div className="inline-flex items-center justify-end gap-2">
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => {
-                setEditingId(row._id)
-                setForm({
-                  name: row.name || '',
-                  sku: row.sku || '',
-                  price: row.price ?? '',
-                  description: row.description || '',
-                })
-                setError('')
-              }}
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={async () => {
-                if (!window.confirm('Delete this product?')) return
-                try {
-                  await productAPI.remove(row._id)
-                  setProducts((prev) => prev.filter((p) => p._id !== row._id))
-                  if (editingId === row._id) {
-                    setEditingId(null)
-                    reset()
-                  }
-                } catch (e) {
-                  setError(e?.response?.data?.error || e?.message || 'Failed to delete product')
-                }
-              }}
-            >
-              Delete
-            </button>
-          </div>
+        sortValue: (r) => Number(r?.purchasePrice ?? 0),
+        render: (r) => formatCurrency(Number(r?.purchasePrice || 0)),
+      },
+      {
+        key: 'sellingPrice',
+        header: 'Selling',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.sellingPrice ?? 0),
+        render: (r) => formatCurrency(Number(r?.sellingPrice || 0)),
+      },
+      {
+        key: 'profit',
+        header: 'Profit',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.profit ?? 0),
+        render: (r) => (
+          <span className="font-semibold text-emerald-700">{formatCurrency(Number(r?.profit || 0))}</span>
         ),
       },
+      {
+        key: 'profitPct',
+        header: 'Profit %',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.profitPct ?? 0),
+        render: (r) => (
+          <span className="font-semibold text-emerald-700">{Number(r?.profitPct || 0).toFixed(1)}%</span>
+        ),
+      },
+      {
+        key: 'stockValue',
+        header: 'Stock Value',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.quantity ?? 0) * Number(r?.sellingPrice ?? 0),
+        render: (r) => formatCurrency((Number(r?.quantity || 0) * Number(r?.sellingPrice || 0)) || 0),
+      },
+      {
+        key: 'minQuantity',
+        header: 'Min',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.minQuantity ?? 0),
+        render: (r) => Number(r?.minQuantity || 0) || '—',
+      },
     ],
-    [editingId]
+    []
   )
 
-  const loadProducts = async () => {
+  const loadInventory = async () => {
     setLoading(true)
     setError('')
     try {
-      const res = await productAPI.list()
+      const res = await inventoryAPI.getInventory()
       const payload = res?.data || res
-      setProducts(payload?.data?.products || payload?.products || [])
+      const data = payload?.data || payload
+      setItems(data?.items || [])
+      setLowStockItems(data?.summary?.lowStockItems || [])
     } catch (e) {
-      setError(e?.response?.data?.error || e?.message || 'Failed to load products')
+      setError(e?.response?.data?.error || e?.response?.data?.message || e?.message || 'Failed to load inventory')
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    loadProducts()
+    loadInventory()
   }, [])
-
-  const onChange = (key) => (e) => {
-    setForm((prev) => ({ ...prev, [key]: e.target.value }))
-  }
-
-  const reset = () => {
-    setForm({ name: '', sku: '', price: '', description: '' })
-    setEditingId(null)
-  }
-
-  const onCreate = async (e) => {
-    e.preventDefault()
-    setError('')
-
-    if (!form.name.trim()) {
-      setError('Name is required')
-      return
-    }
-
-    if (String(form.price).trim() === '') {
-      setError('Price is required')
-      return
-    }
-
-    const priceNumber = Number(form.price)
-    if (!Number.isFinite(priceNumber) || priceNumber < 0) {
-      setError('Price must be a valid number (0 or more)')
-      return
-    }
-
-    try {
-      const payload = {
-        name: form.name.trim(),
-        sku: form.sku.trim() || undefined,
-        price: priceNumber,
-        description: form.description.trim() || undefined,
-      }
-
-      if (editingId) {
-        const res = await productAPI.update(editingId, payload)
-        const body = res?.data || res
-        const updated = body?.data?.product || body?.product
-        if (updated) {
-          setProducts((prev) => prev.map((p) => (p._id === editingId ? updated : p)))
-        } else {
-          await loadProducts()
-        }
-      } else {
-        const res = await productAPI.create(payload)
-        const body = res?.data || res
-        const created = body?.data?.product || body?.product
-        if (created) {
-          setProducts((prev) => [created, ...prev])
-        } else {
-          await loadProducts()
-        }
-      }
-
-      reset()
-    } catch (e2) {
-      setError(
-        e2?.response?.data?.error ||
-          e2?.response?.data?.message ||
-          e2?.message ||
-          (editingId ? 'Failed to update product' : 'Failed to create product')
-      )
-    }
-  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return products
-    return products.filter((p) => {
-      const hay = [p.name, p.sku, p.description, p.price]
-        .filter((v) => v != null)
+    if (!q) return items
+    return items.filter((row) => {
+      const hay = [
+        row.company,
+        row.product,
+        row.variant,
+        row.purchaseQuantityLabel,
+        row.purchaseUnit,
+      ]
+        .filter(Boolean)
         .join(' ')
         .toLowerCase()
       return hay.includes(q)
     })
-  }, [products, query])
+  }, [items, query])
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-        <p className="text-gray-600 mt-1">Create and manage product catalog items.</p>
+        <p className="text-gray-600 mt-1">Inventory items (company, product, variant, pricing).</p>
       </div>
 
-      <section className="card">
-        <h2 className="text-lg font-semibold text-gray-900">{editingId ? 'Edit product' : 'Add product'}</h2>
-        <form onSubmit={onCreate} className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700">Name *</label>
-            <input value={form.name} onChange={onChange('name')} className="input-field mt-1" />
+      {lowStockItems.length ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="font-semibold">Low stock alert</div>
+          <div className="mt-1 text-amber-800">
+            {lowStockItems.length} item(s) are at or below the minimum limit.
           </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700">SKU</label>
-            <input value={form.sku} onChange={onChange('sku')} className="input-field mt-1" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700">Price *</label>
-            <input
-              value={form.price}
-              onChange={onChange('price')}
-              type="number"
-              min="0"
-              step="0.01"
-              inputMode="decimal"
-              className="input-field mt-1"
-              placeholder="0.00"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700">Description</label>
-            <input
-              value={form.description}
-              onChange={onChange('description')}
-              className="input-field mt-1"
-            />
-          </div>
+        </div>
+      ) : null}
 
-          {error ? (
-            <div className="md:col-span-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </div>
-          ) : null}
-
-          <div className="md:col-span-2 flex items-center justify-end gap-2">
-            <button type="button" onClick={reset} className="btn-secondary">
-              Clear
-            </button>
-            <button type="submit" className="btn-primary">
-              {editingId ? 'Save changes' : 'Add product'}
-            </button>
-          </div>
-        </form>
-      </section>
+      {error ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      ) : null}
 
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
@@ -246,7 +153,7 @@ export default function Products() {
               className="input-field"
               placeholder="Search products..."
             />
-            <button type="button" onClick={loadProducts} className="btn-secondary" disabled={loading}>
+            <button type="button" onClick={loadInventory} className="btn-secondary" disabled={loading}>
               Refresh
             </button>
           </div>
