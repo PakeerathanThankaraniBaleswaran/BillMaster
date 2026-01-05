@@ -60,6 +60,13 @@ export default function Dashboard() {
     load()
   }, [navigate])
 
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    sessionStorage.removeItem('token')
+    localStorage.removeItem('setupComplete')
+    navigate('/signin')
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -74,10 +81,22 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">Dashboard</h1>
-        <p className="text-gray-600">
-          Welcome{user ? `, ${user.name}` : ''} to your BillMaster dashboard!
-        </p>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-gray-600 mt-1">
+              Welcome{user ? `, ${user.name}` : ''} to your BillMaster dashboard!
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-gray-700 font-semibold shadow-sm hover:bg-gray-50 transition"
+          >
+            <span>⎋</span>
+            <span>Logout</span>
+          </button>
+        </div>
         <div className="mt-6 grid md:grid-cols-3 gap-4">
           <StatCard label="Paid revenue" value={formatCurrency(summary.invoices.paidTotal)} accent="bg-emerald-600" loading={summaryLoading} />
           <StatCard label="Outstanding" value={formatCurrency(summary.invoices.outstandingTotal)} accent="bg-amber-500" loading={summaryLoading} />
