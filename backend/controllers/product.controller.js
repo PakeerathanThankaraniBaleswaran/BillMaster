@@ -26,7 +26,20 @@ export const listProducts = asyncHandler(async (req, res) => {
 export const updateProduct = asyncHandler(async (req, res, next) => {
   const { id } = req.params
   const updates = req.body || {}
-  const product = await Product.findOneAndUpdate({ _id: id, user: req.user.id }, updates, { new: true })
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'price')) {
+    if (updates.price == null) {
+      delete updates.price
+    } else if (!Number.isFinite(updates.price) || updates.price < 0) {
+      return next(new ErrorResponse('Price must be zero or greater', 400))
+    }
+  }
+
+  const product = await Product.findOneAndUpdate(
+    { _id: id, user: req.user.id },
+    updates,
+    { new: true, runValidators: true }
+  )
   if (!product) return next(new ErrorResponse('Product not found', 404))
   res.json({ success: true, data: { product } })
 })

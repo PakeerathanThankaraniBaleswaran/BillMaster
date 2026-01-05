@@ -31,8 +31,11 @@ export default function DataEntry() {
 
   const totals = useMemo(() => {
     const totalProducts = entries.length
-    const totalStock = entries.reduce((sum, e) => sum + e.quantity, 0)
-    const inventoryValue = entries.reduce((sum, e) => sum + e.quantity * e.sellingPrice, 0)
+    const totalStock = entries.reduce((sum, e) => sum + (Number(e.quantity) || 0), 0)
+    const inventoryValue = entries.reduce(
+      (sum, e) => sum + (Number(e.quantity) || 0) * (Number(e.sellingPrice) || 0),
+      0
+    )
     const companies = new Set(entries.map((e) => e.company)).size
     return { totalProducts, totalStock, inventoryValue, companies }
   }, [entries])

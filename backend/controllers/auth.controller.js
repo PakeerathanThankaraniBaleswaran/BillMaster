@@ -111,7 +111,9 @@ export const googleAuth = asyncHandler(async (req, res, next) => {
   // Check if Google OAuth is configured
   if (!process.env.GOOGLE_CLIENT_ID) {
     // Redirect back to frontend with error message
-    const frontendUrl = process.env.CORS_ORIGIN || 'http://localhost:3000'
+    const frontendUrl = (process.env.CORS_ORIGIN || '')
+      .split(',')[0]
+      ?.trim() || 'http://localhost:5173'
     return res.redirect(`${frontendUrl}/signin?error=google_oauth_not_configured`)
   }
   
@@ -127,7 +129,9 @@ export const googleAuth = asyncHandler(async (req, res, next) => {
 // @access  Public
 export const googleCallback = asyncHandler(async (req, res, next) => {
   const { code } = req.query
-  const frontendUrl = process.env.CORS_ORIGIN || 'http://localhost:3000'
+  const frontendUrl = (process.env.CORS_ORIGIN || '')
+    .split(',')[0]
+    ?.trim() || 'http://localhost:5173'
 
   if (!code) {
     return res.redirect(`${frontendUrl}/signin?error=google_auth_failed`)
@@ -222,7 +226,9 @@ export const githubAuth = asyncHandler(async (req, res, next) => {
   // Check if GitHub OAuth is configured
   if (!process.env.GITHUB_CLIENT_ID) {
     // Redirect back to frontend with error message
-    const frontendUrl = process.env.CORS_ORIGIN || 'http://localhost:3000'
+    const frontendUrl = (process.env.CORS_ORIGIN || '')
+      .split(',')[0]
+      ?.trim() || 'http://localhost:5173'
     return res.redirect(`${frontendUrl}/signin?error=github_oauth_not_configured`)
   }
   

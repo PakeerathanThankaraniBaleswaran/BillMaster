@@ -116,9 +116,14 @@ export default function Products() {
       return
     }
 
-    const priceNumber = form.price === '' ? undefined : Number(form.price)
-    if (priceNumber != null && !Number.isFinite(priceNumber)) {
-      setError('Price must be a number')
+    if (String(form.price).trim() === '') {
+      setError('Price is required')
+      return
+    }
+
+    const priceNumber = Number(form.price)
+    if (!Number.isFinite(priceNumber) || priceNumber < 0) {
+      setError('Price must be a valid number (0 or more)')
       return
     }
 
@@ -192,13 +197,17 @@ export default function Products() {
             <input value={form.sku} onChange={onChange('sku')} className="input-field mt-1" />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700">Price</label>
+            <label className="block text-sm font-semibold text-gray-700">Price *</label>
             <input
               value={form.price}
               onChange={onChange('price')}
+              type="number"
+              min="0"
+              step="0.01"
               inputMode="decimal"
               className="input-field mt-1"
               placeholder="0.00"
+              required
             />
           </div>
           <div>

@@ -7,10 +7,32 @@ import { errorHandler } from './middleware/error.middleware.js'
 const app = express()
 
 // Middleware
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  credentials: true,
-}))
+const configuredOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean)
+
+const isDev = (process.env.NODE_ENV || 'development') !== 'production'
+const allowedOrigins = Array.from(new Set([...configuredOrigins]))
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow non-browser tools (no Origin header)
+      if (!origin) return callback(null, true)
+
+      // In dev, allow any localhost/127.0.0.1 port (Vite may auto-switch ports)
+      if (isDev && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        return callback(null, true)
+      }
+
+      if (allowedOrigins.includes(origin)) return callback(null, true)
+
+      return callback(new Error(`CORS blocked for origin: ${origin}`))
+    },
+    credentials: true,
+  })
+)
 
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
