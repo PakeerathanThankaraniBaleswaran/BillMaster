@@ -2,7 +2,6 @@ import Invoice from '../models/Invoice.model.js'
 import Product from '../models/Product.model.js'
 import Customer from '../models/Customer.model.js'
 import InventoryItem from '../models/InventoryItem.model.js'
-import mongoose from 'mongoose'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { ErrorResponse } from '../utils/errorResponse.js'
 
@@ -11,6 +10,8 @@ const clampPercent = (n) => {
   if (!Number.isFinite(v)) return 0
   return Math.min(100, Math.max(0, v))
 }
+
+const allowedUnits = new Set(['number', 'kg', 'g', 'l', 'ml'])
 
 const calculateTotals = async ({ userId, items = [], taxRate = 0, discountRate = 0 }) => {
   if (!Array.isArray(items) || items.length === 0) {
@@ -23,8 +24,10 @@ const calculateTotals = async ({ userId, items = [], taxRate = 0, discountRate =
 
   let subtotal = 0
   const normalizedItems = items.map((item) => {
-    const { product, quantity = 0, price, description = '' } = item || {}
+    const { product, quantity = 0, price, description = '', unit = 'number' } = item || {}
     if (quantity <= 0) throw new ErrorResponse('Quantity must be greater than zero', 400)
+
+    const safeUnit = allowedUnits.has(unit) ? unit : 'number'
 
     let unitPrice = Number(price)
     let desc = description
@@ -48,6 +51,7 @@ const calculateTotals = async ({ userId, items = [], taxRate = 0, discountRate =
       product: product || null,
       description: desc,
       quantity,
+      unit: safeUnit,
       price: unitPrice,
       total: lineTotal,
     }
@@ -73,13 +77,12 @@ const calculateTotals = async ({ userId, items = [], taxRate = 0, discountRate =
 
 const normalizeName = (s) => String(s || '').trim()
 
-const getLowStockWarnings = async (userId, session) => {
+const getLowStockWarnings = async (userId) => {
   const items = await InventoryItem.find({
     user: userId,
     minQuantity: { $gt: 0 },
   })
     .select('company product variant quantity minQuantity')
-    .session(session || null)
     .lean()
 
   return items
@@ -94,12 +97,12 @@ const getLowStockWarnings = async (userId, session) => {
     }))
 }
 
-const deductInventoryForInvoice = async ({ userId, invoiceItems, session }) => {
+const deductInventoryForInvoice = async ({ userId, invoiceItems }) => {
   // Invoice items don't include variant/company; deduct from any matching inventory product name.
   // Deduct newest stock first.
   const productIds = invoiceItems.map((i) => i.product).filter(Boolean)
   const products = productIds.length
-    ? await Product.find({ _id: { $in: productIds }, user: userId }).select('name').session(session)
+    ? await Product.find({ _id: { $in: productIds }, user: userId }).select('name')
     : []
   const productMap = new Map(products.map((p) => [String(p._id), p]))
 
@@ -120,7 +123,6 @@ const deductInventoryForInvoice = async ({ userId, invoiceItems, session }) => {
       quantity: { $gt: 0 },
     })
       .sort({ createdAt: -1 })
-      .session(session)
 
     const availableTotal = candidates.reduce((sum, c) => sum + Number(c.quantity || 0), 0)
     if (availableTotal < remaining) {
@@ -133,7 +135,7 @@ const deductInventoryForInvoice = async ({ userId, invoiceItems, session }) => {
       if (available <= 0) continue
       const take = Math.min(available, remaining)
       stock.quantity = available - take
-      await stock.save({ session })
+      await stock.save()
       remaining -= take
     }
   }
@@ -160,41 +162,29 @@ export const createInvoice = asyncHandler(async (req, res, next) => {
 
   const computed = await calculateTotals({ userId: req.user.id, items, taxRate, discountRate })
 
-  const session = await mongoose.startSession()
-  let created
-  let warnings = []
-  await session.withTransaction(async () => {
-    if (status === 'paid') {
-      await deductInventoryForInvoice({ userId: req.user.id, invoiceItems: computed.items, session })
-    }
+  if (status === 'paid') {
+    await deductInventoryForInvoice({ userId: req.user.id, invoiceItems: computed.items })
+  }
 
-    created = await Invoice.create(
-      [
-        {
-          user: req.user.id,
-          customer: customer._id,
-          invoiceNumber,
-          items: computed.items,
-          status,
-          notes,
-          currency: computed.currency,
-          subtotal: computed.subtotal,
-          taxRate: computed.taxRate,
-          taxAmount: computed.taxAmount,
-          discountRate: computed.discountRate,
-          discountAmount: computed.discountAmount,
-          total: computed.total,
-          invoiceDate: invoiceDate || Date.now(),
-          dueDate: dueDate || null,
-        },
-      ],
-      { session }
-    )
-    created = created?.[0]
-
-    warnings = await getLowStockWarnings(req.user.id, session)
+  const created = await Invoice.create({
+    user: req.user.id,
+    customer: customer._id,
+    invoiceNumber,
+    items: computed.items,
+    status,
+    notes,
+    currency: computed.currency,
+    subtotal: computed.subtotal,
+    taxRate: computed.taxRate,
+    taxAmount: computed.taxAmount,
+    discountRate: computed.discountRate,
+    discountAmount: computed.discountAmount,
+    total: computed.total,
+    invoiceDate: invoiceDate || Date.now(),
+    dueDate: dueDate || null,
   })
-  session.endSession()
+
+  const warnings = await getLowStockWarnings(req.user.id)
 
   res.status(201).json({
     success: true,
@@ -258,24 +248,20 @@ export const updateInvoice = asyncHandler(async (req, res, next) => {
   const nextStatus = req.body?.status || existingInvoice.status
   const shouldDeduct = existingInvoice.status !== 'paid' && nextStatus === 'paid'
 
-  const session = await mongoose.startSession()
-  let updatedInvoice
-  let warnings = []
-  await session.withTransaction(async () => {
-    if (shouldDeduct) {
-      const invoiceItemsToUse = computed.items || existingInvoice.items
-      await deductInventoryForInvoice({ userId: req.user.id, invoiceItems: invoiceItemsToUse, session })
-    }
+  if (shouldDeduct) {
+    const invoiceItemsToUse = computed.items || existingInvoice.items
+    await deductInventoryForInvoice({ userId: req.user.id, invoiceItems: invoiceItemsToUse })
+  }
 
-    updatedInvoice = await Invoice.findOneAndUpdate(
-      { _id: id, user: req.user.id },
-      { ...req.body, ...computed },
-      { new: true, session }
-    )
+  const updatedInvoice = await Invoice.findOneAndUpdate(
+    { _id: id, user: req.user.id },
+    { ...req.body, ...computed },
+    { new: true }
+  )
+  if (!updatedInvoice) return next(new ErrorResponse('Invoice not found', 404))
 
-    warnings = await getLowStockWarnings(req.user.id, session)
-  })
-  session.endSession()
+  const warnings = await getLowStockWarnings(req.user.id)
+
   const invoice = await Invoice.findOne({ _id: updatedInvoice._id, user: req.user.id })
     .populate('customer', 'name email phone address city zip')
     .populate('items.product', 'name price')

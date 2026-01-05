@@ -5,6 +5,12 @@ const productSchema = new mongoose.Schema(
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     name: { type: String, required: true, trim: true },
     sku: { type: String, trim: true, default: '' },
+    unit: {
+      type: String,
+      trim: true,
+      default: 'number',
+      enum: ['number', 'kg', 'g', 'l', 'ml'],
+    },
     price: { type: Number, required: true, min: 0 },
     description: { type: String, trim: true, default: '' },
   },

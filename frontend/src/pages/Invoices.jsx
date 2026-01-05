@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { FileText, Plus, X } from 'lucide-react'
 import { customerAPI, invoiceAPI, productAPI } from '../services/api'
 
-const newItem = () => ({ product: '', description: '', quantity: 1, price: 0 })
+const newItem = () => ({ product: '', description: '', quantity: 1, unit: 'number', price: 0 })
 
 const formatCurrency = (value) =>
   Number(value || 0).toLocaleString('en-LK', {
@@ -101,6 +101,7 @@ export default function Invoices() {
         if (selected) {
           if (!next.description) next.description = selected.name
           if (!Number(next.price) || Number(next.price) <= 0) next.price = Number(selected.price || 0)
+          next.unit = selected.unit || 'number'
         }
         return next
       })
@@ -151,6 +152,7 @@ export default function Invoices() {
       return {
         product: item.product || undefined,
         quantity: item.quantity,
+        unit: item.unit || 'number',
         price: item.price,
         description: item.description,
       }
@@ -428,7 +430,7 @@ export default function Invoices() {
 
                 <div className="space-y-3">
                   {form.items.map((item, idx) => (
-                    <div key={idx} className="grid grid-cols-[1.2fr,0.6fr,0.6fr,0.4fr] gap-2 items-end">
+                    <div key={idx} className="grid grid-cols-[1.2fr,0.4fr,0.2fr,0.6fr,0.4fr] gap-2 items-end">
                       <div className="space-y-1">
                         <label className="text-xs font-medium text-slate-600">Item name</label>
                         <div className="grid grid-cols-1 gap-2">
@@ -463,6 +465,21 @@ export default function Invoices() {
                           onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
                           required
                         />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-slate-600">Unit</label>
+                        <select
+                          className="select-field"
+                          value={item.unit || 'number'}
+                          onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                          disabled={Boolean(item.product)}
+                        >
+                          <option value="number">number</option>
+                          <option value="kg">kg</option>
+                          <option value="g">g</option>
+                          <option value="l">l</option>
+                          <option value="ml">ml</option>
+                        </select>
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs font-medium text-slate-600">Price (LKR)</label>

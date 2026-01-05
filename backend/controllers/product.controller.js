@@ -4,15 +4,20 @@ import mongoose from 'mongoose'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { ErrorResponse } from '../utils/errorResponse.js'
 
+const allowedUnits = new Set(['number', 'kg', 'g', 'l', 'ml'])
+
 export const createProduct = asyncHandler(async (req, res, next) => {
-  const { name, sku = '', price, description = '' } = req.body || {}
+  const { name, sku = '', price, description = '', unit = 'number' } = req.body || {}
   if (!name) return next(new ErrorResponse('Product name is required', 400))
   if (!Number.isFinite(price) || price < 0) return next(new ErrorResponse('Price must be zero or greater', 400))
+
+  const safeUnit = allowedUnits.has(unit) ? unit : 'number'
 
   const product = await Product.create({
     user: req.user.id,
     name,
     sku,
+    unit: safeUnit,
     price,
     description,
   })
@@ -41,6 +46,7 @@ export const listProducts = asyncHandler(async (req, res) => {
         _id: '$productLower',
         product: { $first: '$product' },
         sellingPrice: { $first: '$sellingPrice' },
+        purchaseUnit: { $first: '$purchaseUnit' },
       },
     },
   ])
@@ -50,9 +56,10 @@ export const listProducts = asyncHandler(async (req, res) => {
       const name = String(g?.product || '').trim()
       const lower = name.toLowerCase()
       const price = Number(g?.sellingPrice)
+      const unit = allowedUnits.has(g?.purchaseUnit) ? g.purchaseUnit : 'number'
       if (!name || existingByLower.has(lower)) return null
       if (!Number.isFinite(price) || price < 0) return null
-      return { name, price }
+      return { name, price, unit }
     })
     .filter(Boolean)
 
@@ -64,6 +71,7 @@ export const listProducts = asyncHandler(async (req, res) => {
             user: userId,
             name: p.name,
             sku: '',
+            unit: p.unit,
             price: p.price,
             description: '',
           },
@@ -79,6 +87,14 @@ export const listProducts = asyncHandler(async (req, res) => {
 export const updateProduct = asyncHandler(async (req, res, next) => {
   const { id } = req.params
   const updates = req.body || {}
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'unit')) {
+    if (updates.unit == null || updates.unit === '') {
+      delete updates.unit
+    } else if (!allowedUnits.has(updates.unit)) {
+      return next(new ErrorResponse('Invalid unit', 400))
+    }
+  }
 
   if (Object.prototype.hasOwnProperty.call(updates, 'price')) {
     if (updates.price == null) {

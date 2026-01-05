@@ -5,6 +5,11 @@ const invoiceItemSchema = new mongoose.Schema(
     product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', default: null },
     description: { type: String, required: true, trim: true },
     quantity: { type: Number, required: true, min: 0 },
+    unit: {
+      type: String,
+      default: 'number',
+      enum: ['number', 'kg', 'g', 'l', 'ml'],
+    },
     price: { type: Number, required: true, min: 0 },
     total: { type: Number, required: true, min: 0 },
   },
