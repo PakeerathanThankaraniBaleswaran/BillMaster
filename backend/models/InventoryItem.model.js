@@ -22,6 +22,17 @@ const inventoryItemSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    purchaseQuantityLabel: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    purchaseUnit: {
+      type: String,
+      trim: true,
+      default: 'number',
+      enum: ['number', 'kg', 'g', 'l', 'ml'],
+    },
     quantity: {
       type: Number,
       required: true,

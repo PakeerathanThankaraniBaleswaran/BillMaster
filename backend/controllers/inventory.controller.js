@@ -6,7 +6,16 @@ import { ErrorResponse } from '../utils/errorResponse.js'
 // @route   POST /api/inventory
 // @access  Private
 export const createInventoryItem = asyncHandler(async (req, res, next) => {
-  const { company, product, variant = '', quantity, purchasePrice, sellingPrice } = req.body || {}
+  const {
+    company,
+    product,
+    variant = '',
+    quantity,
+    purchasePrice,
+    sellingPrice,
+    purchaseQuantityLabel = '',
+    purchaseUnit = 'number',
+  } = req.body || {}
 
   if (!company || !product) {
     return next(new ErrorResponse('Company and product are required', 400))
@@ -29,6 +38,8 @@ export const createInventoryItem = asyncHandler(async (req, res, next) => {
     quantity,
     purchasePrice,
     sellingPrice,
+    purchaseQuantityLabel,
+    purchaseUnit,
   })
 
   return res.status(201).json({

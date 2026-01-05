@@ -5,7 +5,8 @@ const emptyForm = {
   company: '',
   product: '',
   variant: '',
-  quantity: 0,
+  purchaseQuantityValue: 0,
+  purchaseUnit: 'number',
   purchasePrice: 0,
   sellingPrice: 0,
 }
@@ -38,7 +39,7 @@ export default function DataEntry() {
   )
 
   const handleChange = (field, value) => {
-    const numericFields = ['quantity', 'purchasePrice', 'sellingPrice']
+    const numericFields = ['purchasePrice', 'sellingPrice', 'purchaseQuantityValue']
     setForm((prev) => ({
       ...prev,
       [field]: numericFields.includes(field) ? Number(value) || 0 : value,
@@ -67,19 +68,27 @@ export default function DataEntry() {
       alert('Please fill company and product name')
       return
     }
-    if (form.quantity <= 0) {
-      alert('Quantity must be greater than zero')
+    const quantityNumber = Number(form.purchaseQuantityValue)
+
+    if (!Number.isFinite(quantityNumber) || quantityNumber <= 0) {
+      alert('Quantity must be greater than zero (e.g., 25 kg, 10 bags)')
       return
     }
+
+    const label = form.purchaseUnit === 'number'
+      ? `${quantityNumber}`
+      : `${quantityNumber} ${form.purchaseUnit}`
 
     try {
       const res = await inventoryAPI.createItem({
         company: form.company,
         product: form.product,
         variant: form.variant,
-        quantity: form.quantity,
+        quantity: quantityNumber,
         purchasePrice: form.purchasePrice,
         sellingPrice: form.sellingPrice,
+        purchaseQuantityLabel: label,
+        purchaseUnit: form.purchaseUnit,
       })
       const body = res.data || res
       const item = body.data?.item || body.item
@@ -163,14 +172,28 @@ export default function DataEntry() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">Purchase Quantity</label>
-                  <input
-                    type="number"
-                    min="0"
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                    value={form.quantity}
-                    onChange={(e) => handleChange('quantity', e.target.value)}
-                  />
+                  <label className="text-sm font-medium text-slate-700">Stock Purchased (Qty)</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      placeholder="Enter the quantity of stock purchased"
+                      value={form.purchaseQuantityValue}
+                      onChange={(e) => handleChange('purchaseQuantityValue', e.target.value)}
+                    />
+                    <select
+                      className="min-w-[90px] rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      value={form.purchaseUnit}
+                      onChange={(e) => handleChange('purchaseUnit', e.target.value)}
+                    >
+                      <option value="number">number</option>
+                      <option value="kg">kg</option>
+                      <option value="g">g</option>
+                      <option value="l">l</option>
+                      <option value="ml">ml</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-slate-700">Purchase Price</label>
@@ -247,7 +270,7 @@ export default function DataEntry() {
                     <th className="px-4 py-2 text-left">Company</th>
                     <th className="px-4 py-2 text-left">Product</th>
                     <th className="px-4 py-2 text-left">Variant</th>
-                    <th className="px-4 py-2 text-right">Qty</th>
+                    <th className="px-4 py-2 text-right">Purchase Qty</th>
                     <th className="px-4 py-2 text-right">Purchase (LKR)</th>
                     <th className="px-4 py-2 text-right">Selling (LKR)</th>
                     <th className="px-4 py-2 text-right">Profit</th>
@@ -272,7 +295,7 @@ export default function DataEntry() {
                         <td className="px-4 py-2">{row.company || '—'}</td>
                         <td className="px-4 py-2">{row.product}</td>
                         <td className="px-4 py-2">{row.variant || '—'}</td>
-                        <td className="px-4 py-2 text-right">{row.quantity}</td>
+                        <td className="px-4 py-2 text-right">{row.purchaseQuantityLabel || row.quantity}</td>
                         <td className="px-4 py-2 text-right">{formatCurrency(row.purchasePrice)}</td>
                         <td className="px-4 py-2 text-right">{formatCurrency(row.sellingPrice)}</td>
                         <td className="px-4 py-2 text-right text-emerald-700">{formatCurrency(row.profit)}</td>
