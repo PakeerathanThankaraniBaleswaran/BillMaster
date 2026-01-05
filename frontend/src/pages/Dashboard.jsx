@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { FileText, LogOut, PlusCircle } from 'lucide-react'
 import api, { summaryAPI } from '@/services/api'
+import AppTopbar from '@/components/layout/AppTopbar'
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -79,23 +81,34 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+    <div className="app-page">
+      <AppTopbar>
+        <button type="button" onClick={handleLogout} className="btn-secondary">
+          <LogOut className="h-4 w-4" />
+          Logout
+        </button>
+      </AppTopbar>
+
+      <div className="app-container py-8">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-gray-600 mt-1">
-              Welcome{user ? `, ${user.name}` : ''} to your BillMaster dashboard!
-            </p>
+            <h1 className="page-title">Dashboard</h1>
+            <p className="page-subtitle">Welcome{user ? `, ${user.name}` : ''}. Here’s your business snapshot.</p>
           </div>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-gray-700 font-semibold shadow-sm hover:bg-gray-50 transition"
-          >
-            <span>⎋</span>
-            <span>Logout</span>
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => navigate('/cash-in')} className="btn-primary">
+              <PlusCircle className="h-4 w-4" />
+              Cash In
+            </button>
+            <button type="button" onClick={() => navigate('/data-entry')} className="btn-secondary">
+              <PlusCircle className="h-4 w-4" />
+              Data Entry
+            </button>
+            <button type="button" onClick={() => navigate('/invoices')} className="btn-secondary">
+              <FileText className="h-4 w-4" />
+              Invoices
+            </button>
+          </div>
         </div>
         <div className="mt-6 grid md:grid-cols-3 gap-4">
           <StatCard label="Paid revenue" value={formatCurrency(summary.invoices.paidTotal)} accent="bg-emerald-600" loading={summaryLoading} />
@@ -122,26 +135,26 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={() => navigate('/cash-in')}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-white font-semibold shadow-sm hover:bg-emerald-700 transition"
+                className="btn-primary"
               >
-                <span>➕</span>
-                <span>Cash In</span>
+                <PlusCircle className="h-4 w-4" />
+                Cash In
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/data-entry')}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white font-semibold shadow-sm hover:bg-blue-700 transition"
+                className="btn-secondary"
               >
-                <span>🧾</span>
-                <span>Data Entry</span>
+                <PlusCircle className="h-4 w-4" />
+                Data Entry
               </button>
                 <button
                   type="button"
                   onClick={() => navigate('/invoices')}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-700 px-4 py-2 text-white font-semibold shadow-sm hover:bg-indigo-800 transition"
+                  className="btn-secondary"
                 >
-                  <span>🧾</span>
-                  <span>Invoices</span>
+                  <FileText className="h-4 w-4" />
+                  Invoices
                 </button>
             </div>
           </div>
@@ -207,7 +220,7 @@ function StatCard({ label, value, accent, loading }) {
         <p className="text-sm text-gray-500">{label}</p>
         <p className="text-2xl font-semibold text-gray-900 mt-1">{loading ? '—' : value}</p>
       </div>
-      <div className={`h-10 w-10 rounded-lg ${accent} text-white flex items-center justify-center font-semibold`}>₨</div>
+      <div className={`h-10 w-10 rounded-lg ${accent} text-white flex items-center justify-center font-semibold`}>LKR</div>
     </div>
   )
 }

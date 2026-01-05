@@ -1,93 +1,66 @@
 import { Link } from 'react-router-dom'
+import { BarChart3, FileText, Wallet } from 'lucide-react'
 
 function Home() {
   return (
-    <div 
-      className="min-h-screen flex items-center justify-center relative"
-      style={{
-        backgroundColor: '#2563eb',
-        backgroundImage: "url('https://thumbs.dreamstime.com/b/automate-invoice-processing-streamline-billing-cycles-our-innovative-software-manage-finances-efficiently-track-payments-391882263.jpg')",
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-        backgroundAttachment: 'fixed',
-      }}
-    >
-      {/* Dark overlay to ensure text readability */}
-      <div className="absolute inset-0 bg-blue-600/70 z-0"></div>
-      {/* Content container */}
-      <div className="max-w-4xl mx-auto px-4 py-12 w-full relative z-10">
-        <div className="text-center mb-12">
-          {/* Heading matching reference image */}
-          <div className="mb-6">
-            <h1 className="text-5xl md:text-6xl font-bold text-white mb-2">
-              Welcome to
-            </h1>
-            <h1 className="text-6xl md:text-7xl font-bold text-white">
-              BillMaster
-            </h1>
-          </div>
-          
-          {/* Tagline matching reference */}
-          <p className="text-lg md:text-xl text-white mb-8 max-w-xl mx-auto font-light">
-            Manage your invoices, track payments, and grow your business all in one place.
+    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900">
+      <div className="absolute inset-0 bg-black/20" />
+      <div className="relative app-container py-16">
+        <div className="max-w-3xl">
+          <p className="text-xs uppercase tracking-widest text-white/70">Business billing suite</p>
+          <h1 className="mt-4 text-4xl sm:text-5xl font-semibold tracking-tight text-white">
+            BillMaster
+          </h1>
+          <p className="mt-4 text-lg text-white/85 max-w-2xl">
+            Create invoices, track stock, and manage customers — built for small business owners.
           </p>
-          
-          {/* Decorative dashes matching reference */}
-          <div className="flex justify-center gap-2 mb-8">
-            <div className="w-8 h-1 bg-white rounded-full"></div>
-            <div className="w-8 h-1 bg-white rounded-full"></div>
-            <div className="w-8 h-1 bg-white/40 rounded-full"></div>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+
+          <div className="mt-8 flex flex-col sm:flex-row gap-3">
             <Link
               to="/signin"
-              className="px-8 py-3.5 bg-white text-blue-600 rounded-xl font-semibold text-base
-                       transition-all duration-200 
-                       hover:bg-gray-100 hover:shadow-2xl hover:scale-[1.05] 
-                       active:scale-[0.98]"
+              className="inline-flex items-center justify-center rounded-lg bg-white px-6 py-3 text-sm font-semibold text-primary-800 hover:bg-gray-100 transition"
             >
               Sign In
             </Link>
             <Link
               to="/signup"
-              className="px-8 py-3.5 bg-white/10 backdrop-blur-md text-white border-2 border-white/30 rounded-xl font-semibold text-base
-                       transition-all duration-200 
-                       hover:bg-white/20 hover:border-white/50 hover:shadow-2xl hover:scale-[1.05] 
-                       active:scale-[0.98]"
+              className="inline-flex items-center justify-center rounded-lg border border-white/30 bg-white/10 px-6 py-3 text-sm font-semibold text-white hover:bg-white/15 transition"
             >
-              Sign Up
+              Create account
             </Link>
           </div>
         </div>
 
-        {/* Features cards */}
-        <div className="grid md:grid-cols-3 gap-6 mt-16">
-          <div className="text-center bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-6 shadow-xl hover:bg-white/15 transition-all duration-300">
-            <div className="text-4xl mb-4">📄</div>
-            <h3 className="text-xl font-semibold mb-2 text-white">Manage Invoices</h3>
-            <p className="text-white/80">
-              Create, edit, and track all your invoices in one place
-            </p>
-          </div>
-
-          <div className="text-center bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-6 shadow-xl hover:bg-white/15 transition-all duration-300">
-            <div className="text-4xl mb-4">💰</div>
-            <h3 className="text-xl font-semibold mb-2 text-white">Track Payments</h3>
-            <p className="text-white/80">
-              Monitor payments and manage your financial records
-            </p>
-          </div>
-
-          <div className="text-center bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-6 shadow-xl hover:bg-white/15 transition-all duration-300">
-            <div className="text-4xl mb-4">📊</div>
-            <h3 className="text-xl font-semibold mb-2 text-white">Analytics</h3>
-            <p className="text-white/80">
-              Get insights into your business with detailed reports
-            </p>
-          </div>
+        <div className="mt-14 grid md:grid-cols-3 gap-4">
+          <FeatureCard
+            icon={<FileText className="h-5 w-5" />}
+            title="Invoices"
+            description="Create and manage invoices with clear status tracking."
+          />
+          <FeatureCard
+            icon={<Wallet className="h-5 w-5" />}
+            title="Cash & payments"
+            description="Capture daily cash entries and monitor collections."
+          />
+          <FeatureCard
+            icon={<BarChart3 className="h-5 w-5" />}
+            title="Overview"
+            description="Get a quick view of customers, products, and sales."
+          />
         </div>
       </div>
+    </div>
+  )
+}
+
+function FeatureCard({ icon, title, description }) {
+  return (
+    <div className="rounded-xl border border-white/15 bg-white/10 backdrop-blur-sm p-5">
+      <div className="h-10 w-10 rounded-lg bg-white/10 text-white flex items-center justify-center">
+        {icon}
+      </div>
+      <h3 className="mt-4 text-base font-semibold text-white">{title}</h3>
+      <p className="mt-2 text-sm text-white/80">{description}</p>
     </div>
   )
 }

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { FileText, Plus, X } from 'lucide-react'
 import { invoiceAPI, customerAPI } from '../services/api'
+import AppTopbar from '@/components/layout/AppTopbar'
 
 const newItem = () => ({ description: '', quantity: 1, price: 0 })
 
@@ -154,8 +156,9 @@ export default function Invoices() {
   const emptyState = !loading && invoices.length === 0
 
   return (
-    <div className="min-h-screen bg-gray-50 text-slate-800">
-      <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+    <div className="app-page">
+      <AppTopbar />
+      <div className="app-container py-8 space-y-6">
         <header className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-wider text-slate-500">Billing</p>
@@ -165,16 +168,18 @@ export default function Invoices() {
           <button
             type="button"
             onClick={() => setShowModal(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-indigo-700 px-4 py-2 text-white font-semibold shadow-sm hover:bg-indigo-800"
+            className="btn-primary"
           >
-            <span className="text-lg">＋</span>
-            <span>New Invoice</span>
+            <Plus className="h-4 w-4" />
+            New invoice
           </button>
         </header>
 
         {emptyState ? (
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-10 flex flex-col items-center text-center gap-4">
-            <div className="text-5xl text-slate-300">📄</div>
+            <div className="h-12 w-12 rounded-xl bg-gray-100 text-gray-700 flex items-center justify-center">
+              <FileText className="h-6 w-6" />
+            </div>
             <div>
               <h2 className="text-xl font-semibold text-slate-900">No invoices yet</h2>
               <p className="text-slate-600 mt-1">Create your first invoice to get started</p>
@@ -182,7 +187,7 @@ export default function Invoices() {
             <button
               type="button"
               onClick={() => setShowModal(true)}
-              className="rounded-lg bg-indigo-700 px-5 py-2 text-white font-semibold shadow-sm hover:bg-indigo-800"
+              className="btn-primary"
             >
               Create Invoice
             </button>
@@ -240,13 +245,13 @@ export default function Invoices() {
                 <p className="text-sm text-slate-600">Fill in the invoice details below</p>
               </div>
               <button
-                className="text-slate-500 hover:text-slate-700 text-xl"
+                className="text-slate-500 hover:text-slate-700"
                 onClick={() => {
                   setShowModal(false)
                   resetForm()
                 }}
               >
-                ×
+                <X className="h-5 w-5" />
               </button>
             </div>
 
@@ -255,7 +260,7 @@ export default function Invoices() {
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-slate-700">Invoice Number</label>
                   <input
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    className="input-field"
                     value={form.invoiceNumber}
                     onChange={(e) => setForm((prev) => ({ ...prev, invoiceNumber: e.target.value }))}
                     placeholder="e.g., INV-2026-001"
@@ -265,7 +270,7 @@ export default function Invoices() {
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-slate-700">Customer</label>
                   <select
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    className="select-field"
                     value={form.customer}
                     onChange={(e) => setForm((prev) => ({ ...prev, customer: e.target.value }))}
                     required
@@ -286,7 +291,7 @@ export default function Invoices() {
                   <label className="text-sm font-medium text-slate-700">Invoice Date</label>
                   <input
                     type="date"
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    className="input-field"
                     value={form.invoiceDate}
                     onChange={(e) => setForm((prev) => ({ ...prev, invoiceDate: e.target.value }))}
                   />
@@ -295,7 +300,7 @@ export default function Invoices() {
                   <label className="text-sm font-medium text-slate-700">Due Date</label>
                   <input
                     type="date"
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    className="input-field"
                     value={form.dueDate}
                     onChange={(e) => setForm((prev) => ({ ...prev, dueDate: e.target.value }))}
                   />
@@ -305,7 +310,7 @@ export default function Invoices() {
                   <input
                     type="number"
                     min="0"
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    className="input-field"
                     value={form.taxRate}
                     onChange={(e) => setForm((prev) => ({ ...prev, taxRate: Number(e.target.value) || 0 }))}
                   />
@@ -318,7 +323,7 @@ export default function Invoices() {
                   <button
                     type="button"
                     onClick={handleAddItem}
-                    className="text-sm text-indigo-700 hover:text-indigo-800 font-semibold"
+                    className="text-sm text-primary-700 hover:text-primary-800 font-semibold"
                   >
                     + Add Item
                   </button>
@@ -330,7 +335,7 @@ export default function Invoices() {
                       <div className="space-y-1">
                         <label className="text-xs font-medium text-slate-600">Item name</label>
                         <input
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                          className="input-field"
                           value={item.description}
                           onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
                           placeholder="Enter item name"
@@ -342,7 +347,7 @@ export default function Invoices() {
                         <input
                           type="number"
                           min="0"
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                          className="input-field"
                           value={item.quantity}
                           onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
                           required
@@ -353,7 +358,7 @@ export default function Invoices() {
                         <input
                           type="number"
                           min="0"
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                          className="input-field"
                           value={item.price}
                           onChange={(e) => handleItemChange(idx, 'price', e.target.value)}
                           required
@@ -378,7 +383,7 @@ export default function Invoices() {
               <div className="space-y-1">
                 <label className="text-sm font-medium text-slate-700">Notes</label>
                 <textarea
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  className="textarea-field"
                   rows="3"
                   value={form.notes}
                   onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
@@ -399,14 +404,14 @@ export default function Invoices() {
                       setShowModal(false)
                       resetForm()
                     }}
-                    className="rounded-lg border border-slate-200 bg-white px-5 py-2 text-slate-700 font-semibold shadow-sm hover:bg-slate-50"
+                    className="btn-secondary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={saving}
-                    className="rounded-lg bg-indigo-700 px-5 py-2 text-white font-semibold shadow-sm hover:bg-indigo-800 disabled:opacity-60"
+                    className="btn-primary"
                   >
                     {saving ? 'Saving...' : 'Create Invoice'}
                   </button>

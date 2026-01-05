@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Boxes, Building2, RotateCcw, Save, TrendingUp, Wallet } from 'lucide-react'
 import { inventoryAPI } from '../services/api'
+import AppTopbar from '@/components/layout/AppTopbar'
 
 const emptyForm = {
   company: '',
@@ -110,33 +112,35 @@ export default function DataEntry() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800">
-      <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="app-page">
+      <AppTopbar />
+      <div className="app-container py-8">
         <header className="flex items-center justify-between mb-6">
           <div>
-            <p className="text-xs uppercase tracking-wider text-slate-500">Inventory Manager</p>
-            <h1 className="text-2xl font-semibold text-slate-900">Smart data entry & stock tracking</h1>
+            <p className="text-xs uppercase tracking-wider text-gray-500">Inventory</p>
+            <h1 className="page-title">Data entry</h1>
+            <p className="page-subtitle">Add products and track stock value</p>
           </div>
         </header>
 
         <section className="mb-6">
           <div className="flex items-center gap-2 mb-3 text-slate-700 font-semibold">
-            <span>📊</span>
-            <span>Overview</span>
+            <TrendingUp className="h-4 w-4 text-primary-700" />
+            <span className="text-gray-800">Overview</span>
           </div>
           <div className="grid md:grid-cols-4 gap-4">
-            <StatCard label="Total Products" value={totals.totalProducts} icon="📦" theme="blue" />
-            <StatCard label="Companies" value={totals.companies} icon="🏢" theme="emerald" />
-            <StatCard label="Total Stock" value={totals.totalStock} icon="📈" theme="amber" />
-            <StatCard label="Inventory Value" value={formatCurrency(totals.inventoryValue)} icon="💵" theme="green" />
+            <StatCard label="Total Products" value={totals.totalProducts} icon={<Boxes className="h-5 w-5" />} theme="primary" />
+            <StatCard label="Companies" value={totals.companies} icon={<Building2 className="h-5 w-5" />} theme="primarySoft" />
+            <StatCard label="Total Stock" value={totals.totalStock} icon={<TrendingUp className="h-5 w-5" />} theme="neutral" />
+            <StatCard label="Inventory Value" value={formatCurrency(totals.inventoryValue)} icon={<Wallet className="h-5 w-5" />} theme="neutral" />
           </div>
         </section>
 
         <div className="grid md:grid-cols-[1.05fr,1.4fr] gap-5">
           <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
             <div className="flex items-center gap-2 mb-4">
-              <span className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-semibold">+</span>
-              <h2 className="text-lg font-semibold text-slate-900">Add New Product</h2>
+              <span className="h-8 w-8 rounded-full bg-primary-50 text-primary-700 flex items-center justify-center font-semibold border border-primary-100">+</span>
+              <h2 className="text-lg font-semibold text-gray-900">Add product</h2>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -231,17 +235,17 @@ export default function DataEntry() {
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-slate-700 shadow-sm hover:bg-slate-50"
+                  className="btn-secondary"
                 >
-                  <span>↺</span>
-                  <span>Reset</span>
+                  <RotateCcw className="h-4 w-4" />
+                  Reset
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-white font-semibold shadow-sm hover:bg-emerald-700"
+                  className="btn-primary"
                 >
-                  <span>💾</span>
-                  <span>Save Entry</span>
+                  <Save className="h-4 w-4" />
+                  Save
                 </button>
               </div>
             </form>
@@ -316,10 +320,9 @@ export default function DataEntry() {
 
 function StatCard({ label, value, icon, theme }) {
   const themeMap = {
-    blue: 'bg-blue-50 text-blue-600',
-    emerald: 'bg-emerald-50 text-emerald-600',
-    amber: 'bg-amber-50 text-amber-600',
-    green: 'bg-green-50 text-green-600',
+    primary: 'bg-primary-600 text-white',
+    primarySoft: 'bg-primary-50 text-primary-700 border border-primary-100',
+    neutral: 'bg-gray-100 text-gray-700',
   }
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center justify-between">
@@ -327,7 +330,7 @@ function StatCard({ label, value, icon, theme }) {
         <p className="text-sm text-slate-500">{label}</p>
         <p className="text-2xl font-semibold text-slate-900 mt-1">{value}</p>
       </div>
-      <div className={`h-10 w-10 rounded-lg flex items-center justify-center text-lg font-semibold ${themeMap[theme]}`}>
+      <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${themeMap[theme] || themeMap.neutral}`}>
         {icon}
       </div>
     </div>

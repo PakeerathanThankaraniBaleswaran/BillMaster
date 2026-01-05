@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Calendar, RotateCcw, Save, Wallet } from 'lucide-react'
 import { cashInAPI } from '../services/api'
+import AppTopbar from '@/components/layout/AppTopbar'
 
 const denominations = [
   { label: '5000', value: 5000 },
@@ -108,35 +110,36 @@ export default function CashIn() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f9f8] text-slate-800">
-      <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="app-page">
+      <AppTopbar />
+      <div className="app-container py-8">
         <header className="flex items-start justify-between gap-4 mb-8">
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-700 shadow-sm">
-              <span className="text-xl">💵</span>
+            <div className="h-12 w-12 rounded-2xl bg-primary-50 flex items-center justify-center text-primary-700 shadow-sm border border-primary-100">
+              <Wallet className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-semibold text-slate-900">Cash In Entry</h1>
-              <p className="text-sm text-slate-500">Daily cash collection management</p>
+              <h1 className="page-title">Cash In</h1>
+              <p className="page-subtitle">Daily cash collection entry</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <span className="text-emerald-600">📅</span>
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <Calendar className="h-4 w-4 text-primary-700" />
             <span>{todayString}</span>
           </div>
         </header>
 
           <div className="grid md:grid-cols-3 gap-4 mb-6">
-            <div className="rounded-xl border border-emerald-100 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white p-5 shadow-sm">
-              <p className="text-sm flex items-center gap-2">⬆️ Total Cash Today</p>
+            <div className="rounded-xl border border-primary-100 bg-primary-700 text-white p-5 shadow-sm">
+              <p className="text-sm">Total cash today</p>
               <p className="text-3xl font-semibold mt-2">{formatCurrency(summary.totalCashToday)}</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-sm flex items-center gap-2 text-slate-600">⏺️ Total Entries</p>
+              <p className="text-sm text-slate-600">Total entries</p>
               <p className="text-3xl font-semibold mt-2">{summary.entryCount}</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-sm flex items-center gap-2 text-slate-600">🔄 Last Entry</p>
+              <p className="text-sm text-slate-600">Last entry</p>
               <p className="text-lg font-semibold mt-2 text-slate-800">
                 {summary.lastEntryAmount > 0 ? formatCurrency(summary.lastEntryAmount) : 'No entries yet'}
               </p>
@@ -203,17 +206,17 @@ export default function CashIn() {
               <button
                 type="button"
                 onClick={handleClear}
-                className="w-full md:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 text-slate-700 shadow-sm hover:bg-slate-50"
+                className="btn-secondary w-full md:w-auto"
               >
-                <span>↺</span>
-                <span>Reset</span>
+                <RotateCcw className="h-4 w-4" />
+                Reset
               </button>
               <button
                 type="submit"
-                className="w-full md:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 text-white px-8 py-3 font-semibold shadow-md hover:bg-emerald-700 transition"
+                className="btn-primary w-full md:w-auto px-6 py-3"
               >
-                <span>💾</span>
-                <span>Save Entry</span>
+                <Save className="h-4 w-4" />
+                Save entry
               </button>
             </div>
           </form>
