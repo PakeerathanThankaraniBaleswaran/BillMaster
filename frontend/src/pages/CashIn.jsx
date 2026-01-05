@@ -220,7 +220,7 @@ export default function CashIn() {
         </div>
 
         <div className="mt-6 bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-          <p className="text-lg font-semibold text-slate-800 mb-2">Today's Entries</p>
+          <p className="text-lg font-semibold text-slate-800 mb-2">{"Today's Entries"}</p>
           <p className="text-sm text-slate-500">No entries recorded today.</p>
         </div>
       </div>

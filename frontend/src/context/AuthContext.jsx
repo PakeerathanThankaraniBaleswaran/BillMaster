@@ -35,21 +35,17 @@ export const AuthProvider = ({ children }) => {
   }, [])
 
   const login = async (email, password, rememberMe = false) => {
-    try {
-      const response = await api.post('/auth/login', { email, password })
-      // Store token based on remember me preference
-      // Interceptor returns response.data, so access response.data directly
-      const token = response.data?.token || response.token
-      if (rememberMe) {
-        localStorage.setItem('token', token)
-      } else {
-        sessionStorage.setItem('token', token)
-      }
-      setUser(response.data?.user || response.user)
-      return response
-    } catch (error) {
-      throw error
+    const response = await api.post('/auth/login', { email, password })
+    const token = response.data?.token || response.token
+
+    if (rememberMe) {
+      localStorage.setItem('token', token)
+    } else {
+      sessionStorage.setItem('token', token)
     }
+
+    setUser(response.data?.user || response.user)
+    return response
   }
 
   const logout = () => {

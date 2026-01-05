@@ -40,11 +40,11 @@ export default function Dashboard() {
         const summaryRes = await summaryAPI.get()
         const payload = summaryRes.data || summaryRes
         const data = payload.data || payload
-        setSummary({
-          invoices: data.invoices || summary.invoices,
-          counts: data.counts || summary.counts,
+        setSummary((prev) => ({
+          invoices: data.invoices || prev.invoices,
+          counts: data.counts || prev.counts,
           recentInvoices: data.recentInvoices || [],
-        })
+        }))
       } catch (error) {
         if (error.response?.status === 404) {
           navigate('/company-setup')
