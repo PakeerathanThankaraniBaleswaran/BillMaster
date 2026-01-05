@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Calendar, RotateCcw, Save, Wallet } from 'lucide-react'
 import { cashInAPI } from '../services/api'
-import AppTopbar from '@/components/layout/AppTopbar'
 
 const denominations = [
   { label: '5000', value: 5000 },
@@ -110,9 +109,7 @@ export default function CashIn() {
   }
 
   return (
-    <div className="app-page">
-      <AppTopbar />
-      <div className="app-container py-8">
+    <div className="space-y-6">
         <header className="flex items-start justify-between gap-4 mb-8">
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-2xl bg-primary-50 flex items-center justify-center text-primary-700 shadow-sm border border-primary-100">
@@ -226,7 +223,6 @@ export default function CashIn() {
           <p className="text-lg font-semibold text-slate-800 mb-2">{"Today's Entries"}</p>
           <p className="text-sm text-slate-500">No entries recorded today.</p>
         </div>
-      </div>
     </div>
   )
 }

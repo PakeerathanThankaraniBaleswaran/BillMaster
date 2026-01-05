@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Building2, Upload } from 'lucide-react'
-import AppTopbar from '@/components/layout/AppTopbar'
 import { companyAPI } from '../services/api'
 import { COUNTRIES_LIST, getStatesByCountry, searchCountries } from '../data/countries'
 
@@ -98,11 +97,9 @@ export default function CompanySetup() {
   }
 
   return (
-    <div className="app-page">
-      <AppTopbar />
-      <div className="app-container py-8">
-        <div className="card overflow-hidden">
-          <div className="card-body">
+    <div className="space-y-6">
+      <div className="card overflow-hidden">
+        <div className="card-body">
             <div className="flex items-start gap-4">
               <div className="h-12 w-12 rounded-2xl bg-primary-50 border border-primary-100 text-primary-700 flex items-center justify-center">
                 <Building2 className="h-5 w-5" />
@@ -338,7 +335,6 @@ export default function CompanySetup() {
                 </button>
               </div>
             </form>
-          </div>
         </div>
       </div>
     </div>

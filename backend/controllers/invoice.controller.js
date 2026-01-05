@@ -4,7 +4,13 @@ import Customer from '../models/Customer.model.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { ErrorResponse } from '../utils/errorResponse.js'
 
-const calculateTotals = async ({ userId, items = [] }) => {
+const clampPercent = (n) => {
+  const v = Number(n)
+  if (!Number.isFinite(v)) return 0
+  return Math.min(100, Math.max(0, v))
+}
+
+const calculateTotals = async ({ userId, items = [], taxRate = 0, discountRate = 0 }) => {
   if (!Array.isArray(items) || items.length === 0) {
     throw new ErrorResponse('Invoice items are required', 400)
   }
@@ -45,7 +51,22 @@ const calculateTotals = async ({ userId, items = [] }) => {
     }
   })
 
-  return { items: normalizedItems, subtotal, total: subtotal, currency: 'LKR' }
+  const safeTaxRate = clampPercent(taxRate)
+  const safeDiscountRate = clampPercent(discountRate)
+  const taxAmount = (subtotal * safeTaxRate) / 100
+  const discountAmount = (subtotal * safeDiscountRate) / 100
+  const total = Math.max(0, subtotal + taxAmount - discountAmount)
+
+  return {
+    items: normalizedItems,
+    subtotal,
+    taxRate: safeTaxRate,
+    taxAmount,
+    discountRate: safeDiscountRate,
+    discountAmount,
+    total,
+    currency: 'LKR',
+  }
 }
 
 export const createInvoice = asyncHandler(async (req, res, next) => {
@@ -57,6 +78,8 @@ export const createInvoice = asyncHandler(async (req, res, next) => {
     notes = '',
     invoiceDate,
     dueDate,
+    taxRate = 0,
+    discountRate = 0,
   } = req.body || {}
 
   if (!invoiceNumber) return next(new ErrorResponse('Invoice number is required', 400))
@@ -65,18 +88,22 @@ export const createInvoice = asyncHandler(async (req, res, next) => {
   const customer = await Customer.findOne({ _id: customerId, user: req.user.id })
   if (!customer) return next(new ErrorResponse('Customer not found', 404))
 
-  const { items: normalizedItems, subtotal, total, currency } = await calculateTotals({ userId: req.user.id, items })
+  const computed = await calculateTotals({ userId: req.user.id, items, taxRate, discountRate })
 
   const invoice = await Invoice.create({
     user: req.user.id,
     customer: customer._id,
     invoiceNumber,
-    items: normalizedItems,
+    items: computed.items,
     status,
     notes,
-    currency,
-    subtotal,
-    total,
+    currency: computed.currency,
+    subtotal: computed.subtotal,
+    taxRate: computed.taxRate,
+    taxAmount: computed.taxAmount,
+    discountRate: computed.discountRate,
+    discountAmount: computed.discountAmount,
+    total: computed.total,
     invoiceDate: invoiceDate || Date.now(),
     dueDate: dueDate || null,
   })
@@ -103,7 +130,7 @@ export const getInvoice = asyncHandler(async (req, res, next) => {
 
 export const updateInvoice = asyncHandler(async (req, res, next) => {
   const { id } = req.params
-  const { items, customer: customerId } = req.body || {}
+  const { items, customer: customerId, taxRate, discountRate } = req.body || {}
 
   if (customerId) {
     const customer = await Customer.findOne({ _id: customerId, user: req.user.id })
@@ -111,8 +138,19 @@ export const updateInvoice = asyncHandler(async (req, res, next) => {
   }
 
   let computed = {}
-  if (items) {
-    computed = await calculateTotals({ userId: req.user.id, items })
+  if (items || taxRate != null || discountRate != null) {
+    const existing = await Invoice.findOne({ _id: id, user: req.user.id }).lean()
+    if (!existing) return next(new ErrorResponse('Invoice not found', 404))
+
+    const effectiveItems = items || existing.items || []
+    const effectiveTax = taxRate != null ? taxRate : existing.taxRate || 0
+    const effectiveDiscount = discountRate != null ? discountRate : existing.discountRate || 0
+    computed = await calculateTotals({
+      userId: req.user.id,
+      items: effectiveItems,
+      taxRate: effectiveTax,
+      discountRate: effectiveDiscount,
+    })
   }
 
   const invoice = await Invoice.findOneAndUpdate(

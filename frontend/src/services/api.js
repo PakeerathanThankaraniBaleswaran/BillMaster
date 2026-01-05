@@ -56,6 +56,8 @@ export const cashInAPI = {
 export const inventoryAPI = {
   createItem: (payload) => api.post('/inventory', payload),
   getInventory: () => api.get('/inventory'),
+  updateItem: (id, payload) => api.put(`/inventory/${id}`, payload),
+  removeItem: (id) => api.delete(`/inventory/${id}`),
 }
 
 // Product API functions

@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FileText, Plus, X } from 'lucide-react'
-import { invoiceAPI, customerAPI } from '../services/api'
-import AppTopbar from '@/components/layout/AppTopbar'
+import { customerAPI, invoiceAPI, productAPI } from '../services/api'
 
-const newItem = () => ({ description: '', quantity: 1, price: 0 })
+const newItem = () => ({ product: '', description: '', quantity: 1, price: 0 })
 
 const formatCurrency = (value) =>
   Number(value || 0).toLocaleString('en-LK', {
@@ -24,14 +23,18 @@ export default function Invoices() {
   const [loading, setLoading] = useState(true)
   const [invoices, setInvoices] = useState([])
   const [customers, setCustomers] = useState([])
+  const [products, setProducts] = useState([])
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [form, setForm] = useState({
     invoiceNumber: '',
     customer: '',
     invoiceDate: new Date().toISOString().slice(0, 10),
     dueDate: '',
     taxRate: 0,
+    discountRate: 0,
     status: 'draft',
     notes: '',
     items: [newItem()],
@@ -40,15 +43,18 @@ export default function Invoices() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [custRes, invRes] = await Promise.all([
+        const [custRes, invRes, prodRes] = await Promise.all([
           customerAPI.list(),
           invoiceAPI.list(),
+          productAPI.list(),
         ])
         const custPayload = custRes.data || custRes
         const invPayload = invRes.data || invRes
+        const prodPayload = prodRes.data || prodRes
 
         setCustomers(custPayload.data?.customers || custPayload.customers || [])
         setInvoices(invPayload.data?.invoices || invPayload.invoices || [])
+        setProducts(prodPayload.data?.products || prodPayload.products || [])
       } catch (error) {
         console.error('Failed to load invoices data', error)
       } finally {
@@ -63,10 +69,13 @@ export default function Invoices() {
       (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.price) || 0),
       0
     )
-    const taxAmount = (subtotal * Number(form.taxRate || 0)) / 100
-    const total = subtotal + taxAmount
-    return { subtotal, taxAmount, total }
-  }, [form.items, form.taxRate])
+    const safeTax = Math.min(100, Math.max(0, Number(form.taxRate || 0)))
+    const safeDiscount = Math.min(100, Math.max(0, Number(form.discountRate || 0)))
+    const taxAmount = (subtotal * safeTax) / 100
+    const discountAmount = (subtotal * safeDiscount) / 100
+    const total = Math.max(0, subtotal + taxAmount - discountAmount)
+    return { subtotal, taxAmount, discountAmount, total }
+  }, [form.items, form.taxRate, form.discountRate])
 
   const handleItemChange = (idx, field, value) => {
     setForm((prev) => {
@@ -74,10 +83,27 @@ export default function Invoices() {
         i === idx
           ? {
               ...item,
-              [field]: field === 'quantity' || field === 'price' ? Number(value) || 0 : value,
+              [field]:
+                field === 'quantity' || field === 'price' ? Number(value) || 0 : value,
             }
           : item
       )
+      return { ...prev, items }
+    })
+  }
+
+  const handleProductPick = (idx, productId) => {
+    const selected = products.find((p) => p._id === productId)
+    setForm((prev) => {
+      const items = prev.items.map((item, i) => {
+        if (i !== idx) return item
+        const next = { ...item, product: productId }
+        if (selected) {
+          if (!next.description) next.description = selected.name
+          if (!Number(next.price) || Number(next.price) <= 0) next.price = Number(selected.price || 0)
+        }
+        return next
+      })
       return { ...prev, items }
     })
   }
@@ -97,6 +123,7 @@ export default function Invoices() {
       invoiceDate: new Date().toISOString().slice(0, 10),
       dueDate: '',
       taxRate: 0,
+      discountRate: 0,
       status: 'draft',
       notes: '',
       items: [newItem()],
@@ -122,6 +149,7 @@ export default function Invoices() {
 
     const payloadItems = filteredItems.map((item) => {
       return {
+        product: item.product || undefined,
         quantity: item.quantity,
         price: item.price,
         description: item.description,
@@ -135,6 +163,8 @@ export default function Invoices() {
         customer: form.customer,
         status: form.status,
         notes: form.notes,
+        taxRate: Number(form.taxRate || 0),
+        discountRate: Number(form.discountRate || 0),
         items: payloadItems,
         invoiceDate: form.invoiceDate,
         dueDate: form.dueDate || null,
@@ -155,10 +185,21 @@ export default function Invoices() {
 
   const emptyState = !loading && invoices.length === 0
 
+  const filteredInvoices = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return invoices.filter((inv) => {
+      if (statusFilter !== 'all' && inv.status !== statusFilter) return false
+      if (!q) return true
+      const hay = [inv.invoiceNumber, inv.customer?.name, inv.status]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return hay.includes(q)
+    })
+  }, [invoices, query, statusFilter])
+
   return (
-    <div className="app-page">
-      <AppTopbar />
-      <div className="app-container py-8 space-y-6">
+    <div className="space-y-6">
         <header className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-wider text-slate-500">Billing</p>
@@ -196,7 +237,26 @@ export default function Invoices() {
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-slate-900">All invoices</h2>
-              <div className="text-sm text-slate-500">Total: {invoices.length}</div>
+              <div className="flex items-center gap-2">
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="input-field"
+                  placeholder="Search invoices..."
+                />
+                <select
+                  className="select-field"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <option value="all">All statuses</option>
+                  <option value="draft">Draft</option>
+                  <option value="sent">Sent</option>
+                  <option value="paid">Paid</option>
+                  <option value="overdue">Overdue</option>
+                </select>
+                <div className="text-sm text-slate-500">Total: {filteredInvoices.length}</div>
+              </div>
             </div>
             <div className="overflow-x-auto rounded-lg border border-slate-100">
               <table className="min-w-full text-sm text-slate-700">
@@ -215,7 +275,7 @@ export default function Invoices() {
                       <td colSpan="5" className="px-4 py-6 text-center text-slate-500">Loading...</td>
                     </tr>
                   ) : (
-                    invoices.map((inv) => (
+                    filteredInvoices.map((inv) => (
                       <tr key={inv._id} className="border-t border-slate-100">
                         <td className="px-4 py-2 font-semibold text-slate-900">{inv.invoiceNumber}</td>
                         <td className="px-4 py-2 text-slate-700">{inv.customer?.name || '—'}</td>
@@ -234,12 +294,11 @@ export default function Invoices() {
             </div>
           </div>
         )}
-      </div>
-
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white w-full max-w-3xl rounded-xl shadow-2xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+        <div className="fixed inset-0 z-50 bg-black/40 overflow-y-auto">
+          <div className="min-h-full flex items-start justify-center p-4">
+            <div className="bg-white w-full max-w-3xl my-8 rounded-xl shadow-2xl border border-slate-200 overflow-hidden max-h-[calc(100vh-4rem)] flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
               <div>
                 <h3 className="text-xl font-semibold text-slate-900">Create New Invoice</h3>
                 <p className="text-sm text-slate-600">Fill in the invoice details below</p>
@@ -253,9 +312,9 @@ export default function Invoices() {
               >
                 <X className="h-5 w-5" />
               </button>
-            </div>
+              </div>
 
-            <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+              <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4 overflow-y-auto">
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-slate-700">Invoice Number</label>
@@ -288,6 +347,44 @@ export default function Invoices() {
 
               <div className="grid md:grid-cols-3 gap-4">
                 <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Status</label>
+                  <select
+                    className="select-field"
+                    value={form.status}
+                    onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="sent">Sent</option>
+                    <option value="paid">Paid</option>
+                    <option value="overdue">Overdue</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Tax Rate (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    className="input-field"
+                    value={form.taxRate}
+                    onChange={(e) => setForm((prev) => ({ ...prev, taxRate: Number(e.target.value) || 0 }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Discount (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    className="input-field"
+                    value={form.discountRate}
+                    onChange={(e) => setForm((prev) => ({ ...prev, discountRate: Number(e.target.value) || 0 }))}
+                  />
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="space-y-1">
                   <label className="text-sm font-medium text-slate-700">Invoice Date</label>
                   <input
                     type="date"
@@ -305,16 +402,7 @@ export default function Invoices() {
                     onChange={(e) => setForm((prev) => ({ ...prev, dueDate: e.target.value }))}
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">Tax Rate (%)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    className="input-field"
-                    value={form.taxRate}
-                    onChange={(e) => setForm((prev) => ({ ...prev, taxRate: Number(e.target.value) || 0 }))}
-                  />
-                </div>
+                <div />
               </div>
 
               <div className="space-y-2">
@@ -334,13 +422,27 @@ export default function Invoices() {
                     <div key={idx} className="grid grid-cols-[1.2fr,0.6fr,0.6fr,0.4fr] gap-2 items-end">
                       <div className="space-y-1">
                         <label className="text-xs font-medium text-slate-600">Item name</label>
-                        <input
-                          className="input-field"
-                          value={item.description}
-                          onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
-                          placeholder="Enter item name"
-                          required
-                        />
+                        <div className="grid grid-cols-1 gap-2">
+                          <select
+                            className="select-field"
+                            value={item.product}
+                            onChange={(e) => handleProductPick(idx, e.target.value)}
+                          >
+                            <option value="">Select product (optional)</option>
+                            {products.map((p) => (
+                              <option key={p._id} value={p._id}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            className="input-field"
+                            value={item.description}
+                            onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
+                            placeholder="Enter item name"
+                            required
+                          />
+                        </div>
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs font-medium text-slate-600">Qty</label>
@@ -395,6 +497,7 @@ export default function Invoices() {
                 <div className="text-sm text-slate-600 space-y-1">
                   <p>Subtotal: <span className="font-semibold text-slate-900">{formatCurrency(totals.subtotal)}</span></p>
                   <p>Tax ({form.taxRate}%): <span className="font-semibold text-slate-900">{formatCurrency(totals.taxAmount)}</span></p>
+                  <p>Discount ({form.discountRate}%): <span className="font-semibold text-slate-900">{formatCurrency(totals.discountAmount)}</span></p>
                   <p className="text-base font-semibold text-slate-900">Total: {formatCurrency(totals.total)}</p>
                 </div>
                 <div className="flex gap-3">
@@ -417,7 +520,8 @@ export default function Invoices() {
                   </button>
                 </div>
               </div>
-            </form>
+              </form>
+            </div>
           </div>
         </div>
       )}

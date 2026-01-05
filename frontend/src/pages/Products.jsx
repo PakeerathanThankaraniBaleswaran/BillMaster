@@ -6,6 +6,8 @@ export default function Products() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [products, setProducts] = useState([])
+  const [query, setQuery] = useState('')
+  const [editingId, setEditingId] = useState(null)
 
   const [form, setForm] = useState({
     name: '',
@@ -30,16 +32,61 @@ export default function Products() {
         },
       },
       { key: 'description', header: 'Description' },
+      {
+        key: 'actions',
+        header: 'Actions',
+        align: 'right',
+        render: (row) => (
+          <div className="inline-flex items-center justify-end gap-2">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setEditingId(row._id)
+                setForm({
+                  name: row.name || '',
+                  sku: row.sku || '',
+                  price: row.price ?? '',
+                  description: row.description || '',
+                })
+                setError('')
+              }}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={async () => {
+                if (!window.confirm('Delete this product?')) return
+                try {
+                  await productAPI.remove(row._id)
+                  setProducts((prev) => prev.filter((p) => p._id !== row._id))
+                  if (editingId === row._id) {
+                    setEditingId(null)
+                    reset()
+                  }
+                } catch (e) {
+                  setError(e?.response?.data?.error || e?.message || 'Failed to delete product')
+                }
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        ),
+      },
     ],
-    []
+    [editingId]
   )
 
   const loadProducts = async () => {
     setLoading(true)
     setError('')
     try {
-      const res = await productAPI.getAll()
-      setProducts(res?.data || [])
+      const res = await productAPI.list()
+      const payload = res?.data || res
+      setProducts(payload?.data?.products || payload?.products || [])
     } catch (e) {
       setError(e?.response?.data?.error || e?.message || 'Failed to load products')
     } finally {
@@ -57,6 +104,7 @@ export default function Products() {
 
   const reset = () => {
     setForm({ name: '', sku: '', price: '', description: '' })
+    setEditingId(null)
   }
 
   const onCreate = async (e) => {
@@ -75,18 +123,55 @@ export default function Products() {
     }
 
     try {
-      await productAPI.create({
+      const payload = {
         name: form.name.trim(),
         sku: form.sku.trim() || undefined,
         price: priceNumber,
         description: form.description.trim() || undefined,
-      })
+      }
+
+      if (editingId) {
+        const res = await productAPI.update(editingId, payload)
+        const body = res?.data || res
+        const updated = body?.data?.product || body?.product
+        if (updated) {
+          setProducts((prev) => prev.map((p) => (p._id === editingId ? updated : p)))
+        } else {
+          await loadProducts()
+        }
+      } else {
+        const res = await productAPI.create(payload)
+        const body = res?.data || res
+        const created = body?.data?.product || body?.product
+        if (created) {
+          setProducts((prev) => [created, ...prev])
+        } else {
+          await loadProducts()
+        }
+      }
+
       reset()
-      await loadProducts()
     } catch (e2) {
-      setError(e2?.response?.data?.error || e2?.message || 'Failed to create product')
+      setError(
+        e2?.response?.data?.error ||
+          e2?.response?.data?.message ||
+          e2?.message ||
+          (editingId ? 'Failed to update product' : 'Failed to create product')
+      )
     }
   }
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return products
+    return products.filter((p) => {
+      const hay = [p.name, p.sku, p.description, p.price]
+        .filter((v) => v != null)
+        .join(' ')
+        .toLowerCase()
+      return hay.includes(q)
+    })
+  }, [products, query])
 
   return (
     <div className="space-y-6">
@@ -96,7 +181,7 @@ export default function Products() {
       </div>
 
       <section className="card">
-        <h2 className="text-lg font-semibold text-gray-900">Add product</h2>
+        <h2 className="text-lg font-semibold text-gray-900">{editingId ? 'Edit product' : 'Add product'}</h2>
         <form onSubmit={onCreate} className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-semibold text-gray-700">Name *</label>
@@ -136,7 +221,7 @@ export default function Products() {
               Clear
             </button>
             <button type="submit" className="btn-primary">
-              Add product
+              {editingId ? 'Save changes' : 'Add product'}
             </button>
           </div>
         </form>
@@ -145,17 +230,25 @@ export default function Products() {
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-gray-900">All products</h2>
-          <button type="button" onClick={loadProducts} className="btn-secondary" disabled={loading}>
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="input-field"
+              placeholder="Search products..."
+            />
+            <button type="button" onClick={loadProducts} className="btn-secondary" disabled={loading}>
+              Refresh
+            </button>
+          </div>
         </div>
 
         {loading ? (
           <div className="card text-gray-600">Loading...</div>
-        ) : products.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="card text-gray-600">No products yet.</div>
         ) : (
-          <DataTable columns={columns} rows={products} />
+          <DataTable columns={columns} rows={filtered} rowKey={(r) => r._id} />
         )}
       </section>
     </div>

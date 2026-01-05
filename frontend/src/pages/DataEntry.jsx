@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Boxes, Building2, RotateCcw, Save, TrendingUp, Wallet } from 'lucide-react'
 import { inventoryAPI } from '../services/api'
-import AppTopbar from '@/components/layout/AppTopbar'
+import DataTable from '../components/ui/DataTable'
 
 const emptyForm = {
   company: '',
@@ -25,6 +25,9 @@ export default function DataEntry() {
   const [form, setForm] = useState(emptyForm)
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [query, setQuery] = useState('')
+  const [editingId, setEditingId] = useState(null)
 
   const totals = useMemo(() => {
     const totalProducts = entries.length
@@ -46,6 +49,11 @@ export default function DataEntry() {
       ...prev,
       [field]: numericFields.includes(field) ? Number(value) || 0 : value,
     }))
+  }
+
+  const reset = () => {
+    setForm(emptyForm)
+    setEditingId(null)
   }
 
   useEffect(() => {
@@ -81,8 +89,9 @@ export default function DataEntry() {
       ? `${quantityNumber}`
       : `${quantityNumber} ${form.purchaseUnit}`
 
+    setSaving(true)
     try {
-      const res = await inventoryAPI.createItem({
+      const payload = {
         company: form.company,
         product: form.product,
         variant: form.variant,
@@ -91,39 +100,168 @@ export default function DataEntry() {
         sellingPrice: form.sellingPrice,
         purchaseQuantityLabel: label,
         purchaseUnit: form.purchaseUnit,
-      })
+      }
+
+      const res = editingId
+        ? await inventoryAPI.updateItem(editingId, payload)
+        : await inventoryAPI.createItem(payload)
       const body = res.data || res
       const item = body.data?.item || body.item
+
       if (item) {
-        setEntries((prev) => [item, ...prev])
-        alert('Entry saved!')
-        setForm(emptyForm)
+        setEntries((prev) => {
+          if (editingId) return prev.map((e) => (e._id === editingId ? item : e))
+          return [item, ...prev]
+        })
+        reset()
       } else {
-        alert('Saved, but could not read response item.')
+        // Fallback: reload list if response shape changes
+        const reload = await inventoryAPI.getInventory()
+        const payload2 = reload.data || reload
+        const data2 = payload2.data || payload2
+        setEntries(data2.items || [])
+        reset()
       }
     } catch (error) {
       console.error('Failed to save item', error)
       alert(error.response?.data?.message || 'Failed to save item')
+    } finally {
+      setSaving(false)
     }
   }
 
-  const handleReset = () => {
-    setForm(emptyForm)
-  }
+  const filteredEntries = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return entries
+    return entries.filter((row) => {
+      const hay = [
+        row.company,
+        row.product,
+        row.variant,
+        row.purchaseQuantityLabel,
+        row.purchaseUnit,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return hay.includes(q)
+    })
+  }, [entries, query])
+
+  const columns = useMemo(
+    () => [
+      { key: 'company', header: 'Company', sortable: true },
+      { key: 'product', header: 'Product', sortable: true },
+      { key: 'variant', header: 'Variant', sortable: true, render: (r) => r.variant || '—' },
+      {
+        key: 'purchaseQuantityLabel',
+        header: 'Purchase Qty',
+        sortable: true,
+        align: 'right',
+        render: (r) => r.purchaseQuantityLabel || r.quantity,
+      },
+      {
+        key: 'purchasePrice',
+        header: 'Purchase',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.purchasePrice ?? 0),
+        render: (r) => formatCurrency(Number(r?.purchasePrice || 0)),
+      },
+      {
+        key: 'sellingPrice',
+        header: 'Selling',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.sellingPrice ?? 0),
+        render: (r) => formatCurrency(Number(r?.sellingPrice || 0)),
+      },
+      {
+        key: 'profit',
+        header: 'Profit',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.profit ?? 0),
+        render: (r) => (
+          <span className="font-semibold text-emerald-700">{formatCurrency(Number(r?.profit || 0))}</span>
+        ),
+      },
+      {
+        key: 'profitPct',
+        header: 'Profit %',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.profitPct ?? 0),
+        render: (r) => (
+          <span className="font-semibold text-emerald-700">{Number(r?.profitPct || 0).toFixed(1)}%</span>
+        ),
+      },
+      {
+        key: 'stockValue',
+        header: 'Stock Value',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.quantity ?? 0) * Number(r?.sellingPrice ?? 0),
+        render: (r) => formatCurrency((Number(r?.quantity || 0) * Number(r?.sellingPrice || 0)) || 0),
+      },
+      {
+        key: 'actions',
+        header: 'Actions',
+        align: 'right',
+        render: (row) => (
+          <div className="inline-flex items-center justify-end gap-2">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setEditingId(row._id)
+                setForm({
+                  company: row.company || '',
+                  product: row.product || '',
+                  variant: row.variant || '',
+                  purchaseQuantityValue: Number(row.quantity || 0),
+                  purchaseUnit: row.purchaseUnit || 'number',
+                  purchasePrice: Number(row.purchasePrice || 0),
+                  sellingPrice: Number(row.sellingPrice || 0),
+                })
+              }}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={async () => {
+                if (!window.confirm('Delete this inventory item?')) return
+                try {
+                  await inventoryAPI.removeItem(row._id)
+                  setEntries((prev) => prev.filter((e) => e._id !== row._id))
+                  if (editingId === row._id) reset()
+                } catch (err) {
+                  alert(err?.response?.data?.message || err?.message || 'Failed to delete item')
+                }
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [editingId]
+  )
 
   return (
-    <div className="app-page">
-      <AppTopbar />
-      <div className="app-container py-8">
-        <header className="flex items-center justify-between mb-6">
-          <div>
-            <p className="text-xs uppercase tracking-wider text-gray-500">Inventory</p>
-            <h1 className="page-title">Data entry</h1>
-            <p className="page-subtitle">Add products and track stock value</p>
-          </div>
-        </header>
+    <div className="space-y-6">
+      <header className="flex items-center justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-wider text-gray-500">Inventory</p>
+          <h1 className="page-title">Stock</h1>
+          <p className="page-subtitle">Add products and track stock value</p>
+        </div>
+      </header>
 
-        <section className="mb-6">
+      <section>
           <div className="flex items-center gap-2 mb-3 text-slate-700 font-semibold">
             <TrendingUp className="h-4 w-4 text-primary-700" />
             <span className="text-gray-800">Overview</span>
@@ -136,18 +274,18 @@ export default function DataEntry() {
           </div>
         </section>
 
-        <div className="grid md:grid-cols-[1.05fr,1.4fr] gap-5">
-          <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+      <div className="grid md:grid-cols-[1.05fr,1.4fr] gap-5">
+        <section className="card">
             <div className="flex items-center gap-2 mb-4">
               <span className="h-8 w-8 rounded-full bg-primary-50 text-primary-700 flex items-center justify-center font-semibold border border-primary-100">+</span>
-              <h2 className="text-lg font-semibold text-gray-900">Add product</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{editingId ? 'Edit item' : 'Add item'}</h2>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-sm font-medium text-slate-700">Company Name</label>
                 <input
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="input-field"
                   placeholder="Enter company name"
                   value={form.company}
                   onChange={(e) => handleChange('company', e.target.value)}
@@ -157,7 +295,7 @@ export default function DataEntry() {
               <div className="space-y-1">
                 <label className="text-sm font-medium text-slate-700">Product Name</label>
                 <input
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="input-field"
                   placeholder="Enter product name"
                   value={form.product}
                   onChange={(e) => handleChange('product', e.target.value)}
@@ -167,7 +305,7 @@ export default function DataEntry() {
               <div className="space-y-1">
                 <label className="text-sm font-medium text-slate-700">Variant</label>
                 <input
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="input-field"
                   placeholder="e.g., 500ml, Red, Large"
                   value={form.variant}
                   onChange={(e) => handleChange('variant', e.target.value)}
@@ -181,13 +319,13 @@ export default function DataEntry() {
                     <input
                       type="number"
                       min="0"
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      className="input-field"
                       placeholder="Enter the quantity of stock purchased"
                       value={form.purchaseQuantityValue}
                       onChange={(e) => handleChange('purchaseQuantityValue', e.target.value)}
                     />
                     <select
-                      className="min-w-[90px] rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      className="select-field min-w-[90px]"
                       value={form.purchaseUnit}
                       onChange={(e) => handleChange('purchaseUnit', e.target.value)}
                     >
@@ -204,7 +342,7 @@ export default function DataEntry() {
                   <input
                     type="number"
                     min="0"
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="input-field"
                     value={form.purchasePrice}
                     onChange={(e) => handleChange('purchasePrice', e.target.value)}
                   />
@@ -217,7 +355,7 @@ export default function DataEntry() {
                   <input
                     type="number"
                     min="0"
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="input-field"
                     value={form.sellingPrice}
                     onChange={(e) => handleChange('sellingPrice', e.target.value)}
                   />
@@ -234,7 +372,7 @@ export default function DataEntry() {
               <div className="flex items-center gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={handleReset}
+                  onClick={reset}
                   className="btn-secondary"
                 >
                   <RotateCcw className="h-4 w-4" />
@@ -243,76 +381,37 @@ export default function DataEntry() {
                 <button
                   type="submit"
                   className="btn-primary"
+                  disabled={saving}
                 >
                   <Save className="h-4 w-4" />
-                  Save
+                  {saving ? 'Saving...' : editingId ? 'Save changes' : 'Save'}
                 </button>
               </div>
             </form>
           </section>
 
-          <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 overflow-hidden">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-                <span className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">📦</span>
-                <span>Inventory</span>
-                <span className="text-xs font-semibold text-slate-500 bg-slate-100 rounded-full px-2 py-1">{entries.length} items</span>
-              </div>
-              <div className="w-60">
-                <input
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                  placeholder="Search products..."
-                  disabled
-                />
-              </div>
+        <section className="card overflow-hidden">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Inventory</h2>
+              <p className="text-sm text-gray-600">{entries.length} items</p>
             </div>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="input-field w-full max-w-xs"
+              placeholder="Search inventory..."
+            />
+          </div>
 
-            <div className="overflow-x-auto rounded-lg border border-slate-100">
-              <table className="min-w-full text-sm text-slate-700">
-                <thead className="bg-slate-50 text-slate-600">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Company</th>
-                    <th className="px-4 py-2 text-left">Product</th>
-                    <th className="px-4 py-2 text-left">Variant</th>
-                    <th className="px-4 py-2 text-right">Purchase Qty</th>
-                    <th className="px-4 py-2 text-right">Purchase (LKR)</th>
-                    <th className="px-4 py-2 text-right">Selling (LKR)</th>
-                    <th className="px-4 py-2 text-right">Profit</th>
-                    <th className="px-4 py-2 text-right">Profit %</th>
-                    <th className="px-4 py-2 text-right">Stock Value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan="9" className="px-4 py-6 text-center text-slate-500">Loading...</td>
-                    </tr>
-                  ) : entries.length === 0 ? (
-                    <tr>
-                      <td colSpan="9" className="px-4 py-8 text-center text-slate-500">
-                        No products found. Add your first product to get started.
-                      </td>
-                    </tr>
-                  ) : (
-                    entries.map((row, idx) => (
-                      <tr key={`${row._id || row.product}-${idx}`} className="border-t border-slate-100">
-                        <td className="px-4 py-2">{row.company || '—'}</td>
-                        <td className="px-4 py-2">{row.product}</td>
-                        <td className="px-4 py-2">{row.variant || '—'}</td>
-                        <td className="px-4 py-2 text-right">{row.purchaseQuantityLabel || row.quantity}</td>
-                        <td className="px-4 py-2 text-right">{formatCurrency(row.purchasePrice)}</td>
-                        <td className="px-4 py-2 text-right">{formatCurrency(row.sellingPrice)}</td>
-                        <td className="px-4 py-2 text-right text-emerald-700">{formatCurrency(row.profit)}</td>
-                        <td className="px-4 py-2 text-right text-emerald-700">{(row.profitPct || 0).toFixed(1)}%</td>
-                        <td className="px-4 py-2 text-right">{formatCurrency(row.quantity * row.sellingPrice)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </div>
+          {loading ? (
+            <div className="text-gray-600">Loading...</div>
+          ) : filteredEntries.length === 0 ? (
+            <div className="text-gray-600">No inventory items yet.</div>
+          ) : (
+            <DataTable columns={columns} rows={filteredEntries} rowKey={(r) => r._id} />
+          )}
+        </section>
       </div>
     </div>
   )

@@ -72,3 +72,71 @@ export const getInventory = asyncHandler(async (req, res) => {
     },
   })
 })
+
+// @desc    Update inventory item
+// @route   PUT /api/inventory/:id
+// @access  Private
+export const updateInventoryItem = asyncHandler(async (req, res, next) => {
+  const { id } = req.params
+  const item = await InventoryItem.findOne({ _id: id, user: req.user.id })
+  if (!item) return next(new ErrorResponse('Inventory item not found', 404))
+
+  const {
+    company,
+    product,
+    variant,
+    quantity,
+    purchasePrice,
+    sellingPrice,
+    purchaseQuantityLabel,
+    purchaseUnit,
+  } = req.body || {}
+
+  if (company != null) item.company = company
+  if (product != null) item.product = product
+  if (variant != null) item.variant = variant
+  if (purchaseQuantityLabel != null) item.purchaseQuantityLabel = purchaseQuantityLabel
+  if (purchaseUnit != null) item.purchaseUnit = purchaseUnit
+
+  if (quantity != null) {
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      return next(new ErrorResponse('Quantity must be greater than zero', 400))
+    }
+    item.quantity = quantity
+  }
+
+  if (purchasePrice != null) {
+    if (!Number.isFinite(purchasePrice) || purchasePrice < 0) {
+      return next(new ErrorResponse('Purchase price must be zero or greater', 400))
+    }
+    item.purchasePrice = purchasePrice
+  }
+
+  if (sellingPrice != null) {
+    if (!Number.isFinite(sellingPrice) || sellingPrice < 0) {
+      return next(new ErrorResponse('Selling price must be zero or greater', 400))
+    }
+    item.sellingPrice = sellingPrice
+  }
+
+  await item.save()
+
+  return res.status(200).json({
+    success: true,
+    data: { item },
+  })
+})
+
+// @desc    Delete inventory item
+// @route   DELETE /api/inventory/:id
+// @access  Private
+export const deleteInventoryItem = asyncHandler(async (req, res, next) => {
+  const { id } = req.params
+  const item = await InventoryItem.findOneAndDelete({ _id: id, user: req.user.id })
+  if (!item) return next(new ErrorResponse('Inventory item not found', 404))
+
+  return res.status(200).json({
+    success: true,
+    message: 'Inventory item deleted',
+  })
+})
