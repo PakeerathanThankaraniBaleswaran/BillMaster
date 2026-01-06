@@ -646,6 +646,7 @@ export default function Invoices() {
                       >
                         <option value="cash">Cash</option>
                         <option value="card">Card</option>
+                        <option value="credit">Credit</option>
                         <option value="bank">Bank</option>
                       </select>
                     </div>
