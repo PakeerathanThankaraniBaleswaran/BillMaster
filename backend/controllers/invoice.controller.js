@@ -155,10 +155,12 @@ export const createInvoice = asyncHandler(async (req, res, next) => {
   } = req.body || {}
 
   if (!invoiceNumber) return next(new ErrorResponse('Invoice number is required', 400))
-  if (!customerId) return next(new ErrorResponse('Customer is required', 400))
 
-  const customer = await Customer.findOne({ _id: customerId, user: req.user.id })
-  if (!customer) return next(new ErrorResponse('Customer not found', 404))
+  let customer = null
+  if (customerId) {
+    customer = await Customer.findOne({ _id: customerId, user: req.user.id })
+    if (!customer) return next(new ErrorResponse('Customer not found', 404))
+  }
 
   const computed = await calculateTotals({ userId: req.user.id, items, taxRate, discountRate })
 
@@ -168,7 +170,7 @@ export const createInvoice = asyncHandler(async (req, res, next) => {
 
   const created = await Invoice.create({
     user: req.user.id,
-    customer: customer._id,
+    customer: customer?._id || null,
     invoiceNumber,
     items: computed.items,
     status,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FileText, Plus, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { customerAPI, invoiceAPI, productAPI } from '../services/api'
 
 const newItem = () => ({ product: '', description: '', quantity: 1, unit: 'number', price: 0 })
@@ -12,22 +12,14 @@ const formatCurrency = (value) =>
     maximumFractionDigits: 2,
   })
 
-const statusColors = {
-  draft: 'bg-slate-100 text-slate-800',
-  sent: 'bg-blue-100 text-blue-800',
-  paid: 'bg-emerald-100 text-emerald-800',
-  overdue: 'bg-rose-100 text-rose-800',
-}
-
 export default function Invoices() {
   const [loading, setLoading] = useState(true)
-  const [invoices, setInvoices] = useState([])
   const [customers, setCustomers] = useState([])
   const [products, setProducts] = useState([])
-  const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [query, setQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [itemLookupMode, setItemLookupMode] = useState('serial')
+  const [itemLookupQuery, setItemLookupQuery] = useState('')
+  const [paymentMode, setPaymentMode] = useState('cash')
   const [form, setForm] = useState({
     invoiceNumber: '',
     customer: '',
@@ -43,17 +35,11 @@ export default function Invoices() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [custRes, invRes, prodRes] = await Promise.all([
-          customerAPI.list(),
-          invoiceAPI.list(),
-          productAPI.list(),
-        ])
+        const [custRes, prodRes] = await Promise.all([customerAPI.list(), productAPI.list()])
         const custPayload = custRes.data || custRes
-        const invPayload = invRes.data || invRes
         const prodPayload = prodRes.data || prodRes
 
         setCustomers(custPayload.data?.customers || custPayload.customers || [])
-        setInvoices(invPayload.data?.invoices || invPayload.invoices || [])
         setProducts(prodPayload.data?.products || prodPayload.products || [])
       } catch (error) {
         console.error('Failed to load invoices data', error)
@@ -62,6 +48,13 @@ export default function Invoices() {
       }
     }
     load()
+  }, [])
+
+  useEffect(() => {
+    setForm((prev) => {
+      if (prev.invoiceNumber?.trim()) return prev
+      return { ...prev, invoiceNumber: `INV-${Date.now()}` }
+    })
   }, [])
 
   const totals = useMemo(() => {
@@ -92,19 +85,38 @@ export default function Invoices() {
     })
   }
 
-  const handleProductPick = (idx, productId) => {
-    const selected = products.find((p) => p._id === productId)
+  const addProductToInvoice = (product) => {
+    if (!product?._id) return
     setForm((prev) => {
-      const items = prev.items.map((item, i) => {
-        if (i !== idx) return item
-        const next = { ...item, product: productId }
-        if (selected) {
-          if (!next.description) next.description = selected.name
-          if (!Number(next.price) || Number(next.price) <= 0) next.price = Number(selected.price || 0)
-          next.unit = selected.unit || 'number'
+      const nextLine = {
+        product: product._id,
+        description: product.name || '',
+        quantity: 1,
+        unit: product.unit || 'number',
+        price: Number(product.price || 0),
+      }
+
+      const items = Array.isArray(prev.items) ? [...prev.items] : [newItem()]
+
+      const existingIndex = items.findIndex((i) => i?.product === product._id)
+      if (existingIndex >= 0) {
+        const existing = items[existingIndex]
+        items[existingIndex] = {
+          ...existing,
+          description: existing.description || nextLine.description,
+          unit: existing.unit || nextLine.unit,
+          price: Number(existing.price || 0) > 0 ? existing.price : nextLine.price,
+          quantity: (Number(existing.quantity) || 0) + 1,
         }
-        return next
-      })
+        return { ...prev, items }
+      }
+
+      const emptyIndex = items.findIndex((i) => !i.product && !String(i.description || '').trim())
+      if (emptyIndex >= 0) {
+        items[emptyIndex] = { ...items[emptyIndex], ...nextLine }
+      } else {
+        items.push(nextLine)
+      }
       return { ...prev, items }
     })
   }
@@ -137,10 +149,6 @@ export default function Invoices() {
       alert('Invoice number is required')
       return
     }
-    if (!form.customer) {
-      alert('Please select a customer')
-      return
-    }
 
     const filteredItems = form.items.filter((item) => item.description && item.quantity > 0 && item.price >= 0)
     if (filteredItems.length === 0) {
@@ -162,7 +170,7 @@ export default function Invoices() {
     try {
       const res = await invoiceAPI.create({
         invoiceNumber: form.invoiceNumber,
-        customer: form.customer,
+        customer: form.customer || undefined,
         status: form.status,
         notes: form.notes,
         taxRate: Number(form.taxRate || 0),
@@ -175,9 +183,9 @@ export default function Invoices() {
       const invoice = body.data?.invoice || body.invoice
       const lowStock = body.warnings?.lowStock
       if (invoice) {
-        setInvoices((prev) => [invoice, ...prev])
-        setShowModal(false)
         resetForm()
+        setForm((prev) => ({ ...prev, invoiceNumber: `INV-${Date.now()}` }))
+        setItemLookupQuery('')
 
         if (Array.isArray(lowStock) && lowStock.length) {
           const msg = lowStock
@@ -194,195 +202,157 @@ export default function Invoices() {
     }
   }
 
-  const emptyState = !loading && invoices.length === 0
+  const selectedCustomer = useMemo(() => {
+    return customers.find((c) => c._id === form.customer) || null
+  }, [customers, form.customer])
 
-  const filteredInvoices = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return invoices.filter((inv) => {
-      if (statusFilter !== 'all' && inv.status !== statusFilter) return false
-      if (!q) return true
-      const hay = [inv.invoiceNumber, inv.customer?.name, inv.status]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-      return hay.includes(q)
+  const filteredProductsForLookup = useMemo(() => {
+    const q = itemLookupQuery.trim().toLowerCase()
+    if (!q) return products
+
+    return products.filter((p) => {
+      const name = String(p?.name || '').toLowerCase()
+      const sku = String(p?.sku || '').toLowerCase()
+      if (itemLookupMode === 'name') return name.includes(q)
+      return sku.includes(q) || name.includes(q)
     })
-  }, [invoices, query, statusFilter])
+  }, [products, itemLookupMode, itemLookupQuery])
+
+
+  const handleCancel = () => {
+    resetForm()
+    setForm((prev) => ({ ...prev, invoiceNumber: `INV-${Date.now()}` }))
+    setItemLookupQuery('')
+  }
 
   return (
-    <div className="space-y-6">
-        <header className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-wider text-slate-500">Billing</p>
-            <h1 className="text-3xl font-semibold text-slate-900">Invoices</h1>
-            <p className="text-sm text-slate-600 mt-1">Create and manage your invoices</p>
+    <div className="min-h-[calc(100vh-4rem)]">
+      <div className="bg-white w-full h-[calc(100vh-4rem)] rounded-none border border-slate-200 overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-700">Bill</div>
+            <div className="text-xs font-semibold px-3 py-1 rounded-full bg-primary-600 text-white">No Tax Invoice</div>
           </div>
           <button
             type="button"
-            onClick={() => setShowModal(true)}
-            className="btn-primary"
+            className="text-slate-500 hover:text-slate-700"
+            onClick={handleCancel}
+            aria-label="Reset"
           >
-            <Plus className="h-4 w-4" />
-            New invoice
+            <X className="h-5 w-5" />
           </button>
-        </header>
+        </div>
 
-        {emptyState ? (
-          <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-10 flex flex-col items-center text-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-gray-100 text-gray-700 flex items-center justify-center">
-              <FileText className="h-6 w-6" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-slate-900">No invoices yet</h2>
-              <p className="text-slate-600 mt-1">Create your first invoice to get started</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowModal(true)}
-              className="btn-primary"
-            >
-              Create Invoice
-            </button>
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-900">All invoices</h2>
-              <div className="flex items-center gap-2">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-hidden">
+          <div className="h-full grid grid-cols-1 lg:grid-cols-[360px,1fr]">
+            <aside className="border-b lg:border-b-0 lg:border-r border-slate-200 p-4 overflow-y-auto">
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-4">
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="radio"
+                      name="lookupMode"
+                      checked={itemLookupMode === 'serial'}
+                      onChange={() => setItemLookupMode('serial')}
+                    />
+                    Serial No.
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="radio"
+                      name="lookupMode"
+                      checked={itemLookupMode === 'itemcode'}
+                      onChange={() => setItemLookupMode('itemcode')}
+                    />
+                    Item Code
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="radio"
+                      name="lookupMode"
+                      checked={itemLookupMode === 'name'}
+                      onChange={() => setItemLookupMode('name')}
+                    />
+                    Item Name
+                  </label>
+                </div>
+
                 <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
                   className="input-field"
-                  placeholder="Search invoices..."
+                  value={itemLookupQuery}
+                  onChange={(e) => setItemLookupQuery(e.target.value)}
+                  placeholder="Search product..."
                 />
-                <select
-                  className="select-field"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                >
-                  <option value="all">All statuses</option>
-                  <option value="draft">Draft</option>
-                  <option value="sent">Sent</option>
-                  <option value="paid">Paid</option>
-                  <option value="overdue">Overdue</option>
-                </select>
-                <div className="text-sm text-slate-500">Total: {filteredInvoices.length}</div>
-              </div>
-            </div>
-            <div className="overflow-x-auto rounded-lg border border-slate-100">
-              <table className="min-w-full text-sm text-slate-700">
-                <thead className="bg-slate-50 text-slate-600">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Invoice #</th>
-                    <th className="px-4 py-2 text-left">Customer</th>
-                    <th className="px-4 py-2 text-left">Status</th>
-                    <th className="px-4 py-2 text-right">Subtotal</th>
-                    <th className="px-4 py-2 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan="5" className="px-4 py-6 text-center text-slate-500">Loading...</td>
-                    </tr>
-                  ) : (
-                    filteredInvoices.map((inv) => (
-                      <tr key={inv._id} className="border-t border-slate-100">
-                        <td className="px-4 py-2 font-semibold text-slate-900">{inv.invoiceNumber}</td>
-                        <td className="px-4 py-2 text-slate-700">{inv.customer?.name || '—'}</td>
-                        <td className="px-4 py-2">
-                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusColors[inv.status] || statusColors.draft}`}>
-                            {inv.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2 text-right">{formatCurrency(inv.subtotal)}</td>
-                        <td className="px-4 py-2 text-right">{formatCurrency(inv.total)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 overflow-y-auto">
-          <div className="min-h-full flex items-start justify-center p-4">
-            <div className="bg-white w-full max-w-3xl my-8 rounded-xl shadow-2xl border border-slate-200 overflow-hidden max-h-[calc(100vh-4rem)] flex flex-col">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
-              <div>
-                <h3 className="text-xl font-semibold text-slate-900">Create New Invoice</h3>
-                <p className="text-sm text-slate-600">Fill in the invoice details below</p>
-              </div>
-              <button
-                className="text-slate-500 hover:text-slate-700"
-                onClick={() => {
-                  setShowModal(false)
-                  resetForm()
-                }}
-              >
-                <X className="h-5 w-5" />
-              </button>
-              </div>
 
-              <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4 overflow-y-auto">
-              <div className="grid md:grid-cols-2 gap-4">
+                <div className="rounded-lg border border-slate-200 overflow-hidden bg-white">
+                  <div className="px-3 py-2 text-xs font-semibold text-slate-600 bg-slate-50 border-b border-slate-200">
+                    Products
+                  </div>
+                  <div className="max-h-[calc(100vh-15rem)] overflow-y-auto">
+                    {loading ? (
+                      <div className="px-3 py-3 text-sm text-slate-500">Loading...</div>
+                    ) : filteredProductsForLookup.length ? (
+                      filteredProductsForLookup.map((p) => (
+                        <button
+                          key={p._id}
+                          type="button"
+                          onClick={() => addProductToInvoice(p)}
+                          className="w-full text-left px-3 py-3 border-b border-slate-100 hover:bg-slate-50"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-slate-900 truncate">
+                                {p.sku ? `${p.sku} - ` : ''}{p.name}
+                              </div>
+                              <div className="text-xs text-slate-500 truncate">
+                                Unit: {p.unit || 'number'}
+                              </div>
+                            </div>
+                            <div className="text-sm font-semibold text-slate-800 whitespace-nowrap">
+                              {formatCurrency(p.price)}
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-3 text-sm text-slate-500">No products found.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            <div className="p-5 overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">Invoice Number</label>
+                  <label className="text-xs font-medium text-slate-600">Phone No.</label>
                   <input
                     className="input-field"
-                    value={form.invoiceNumber}
-                    onChange={(e) => setForm((prev) => ({ ...prev, invoiceNumber: e.target.value }))}
-                    placeholder="e.g., INV-2026-001"
-                    required
+                    value={selectedCustomer?.phone || ''}
+                    readOnly
+                    placeholder="—"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">Customer</label>
+                  <label className="text-xs font-medium text-slate-600">Customer</label>
                   <select
                     className="select-field"
                     value={form.customer}
                     onChange={(e) => setForm((prev) => ({ ...prev, customer: e.target.value }))}
-                    required
                   >
-                    <option value="">Select a customer</option>
+                    <option value="">Select customer</option>
                     {customers.map((c) => (
-                      <option key={c._id} value={c._id}>{c.name}</option>
+                      <option key={c._id} value={c._id}>
+                        {c.name}
+                      </option>
                     ))}
                   </select>
-                  {customers.length === 0 && (
-                    <p className="text-xs text-amber-600">Add a customer first.</p>
-                  )}
                 </div>
               </div>
 
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="mt-3 grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">Status</label>
-                  <select
-                    className="select-field"
-                    value={form.status}
-                    onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
-                  >
-                    <option value="draft">Draft</option>
-                    <option value="sent">Sent</option>
-                    <option value="paid">Paid</option>
-                    <option value="overdue">Overdue</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">Tax Rate (%)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    className="input-field"
-                    value={form.taxRate}
-                    onChange={(e) => setForm((prev) => ({ ...prev, taxRate: Number(e.target.value) || 0 }))}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">Discount (%)</label>
+                  <label className="text-xs font-medium text-slate-600">Discount (%)</label>
                   <input
                     type="number"
                     min="0"
@@ -392,165 +362,167 @@ export default function Invoices() {
                     onChange={(e) => setForm((prev) => ({ ...prev, discountRate: Number(e.target.value) || 0 }))}
                   />
                 </div>
-              </div>
-
-              <div className="grid md:grid-cols-3 gap-4">
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">Invoice Date</label>
+                  <label className="text-xs font-medium text-slate-600">Tax (%)</label>
                   <input
-                    type="date"
+                    type="number"
+                    min="0"
+                    max="100"
                     className="input-field"
-                    value={form.invoiceDate}
-                    onChange={(e) => setForm((prev) => ({ ...prev, invoiceDate: e.target.value }))}
+                    value={form.taxRate}
+                    onChange={(e) => setForm((prev) => ({ ...prev, taxRate: Number(e.target.value) || 0 }))}
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">Due Date</label>
-                  <input
-                    type="date"
-                    className="input-field"
-                    value={form.dueDate}
-                    onChange={(e) => setForm((prev) => ({ ...prev, dueDate: e.target.value }))}
-                  />
-                </div>
-                <div />
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold text-slate-800">Invoice Items</h4>
-                  <button
-                    type="button"
-                    onClick={handleAddItem}
-                    className="text-sm text-primary-700 hover:text-primary-800 font-semibold"
-                  >
-                    + Add Item
-                  </button>
+              <div className="mt-5 rounded-lg border border-slate-200 overflow-hidden">
+                <div className="grid grid-cols-[1.2fr,0.25fr,0.25fr,0.4fr,0.4fr] gap-2 bg-primary-600 text-white text-xs font-semibold px-3 py-2">
+                  <div>Particular / Item</div>
+                  <div className="text-right">Qty</div>
+                  <div>Unit</div>
+                  <div className="text-right">Rate</div>
+                  <div className="text-right">Amount</div>
                 </div>
 
-                <div className="space-y-3">
+                <div className="p-3 space-y-3">
                   {form.items.map((item, idx) => (
-                    <div key={idx} className="grid grid-cols-[1.2fr,0.4fr,0.2fr,0.6fr,0.4fr] gap-2 items-end">
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-slate-600">Item name</label>
-                        <div className="grid grid-cols-1 gap-2">
-                          <select
-                            className="select-field"
-                            value={item.product}
-                            onChange={(e) => handleProductPick(idx, e.target.value)}
-                          >
-                            <option value="">Select product (optional)</option>
-                            {products.map((p) => (
-                              <option key={p._id} value={p._id}>
-                                {p.name}
-                              </option>
-                            ))}
-                          </select>
+                    <div key={idx} className="grid grid-cols-[1.2fr,0.25fr,0.25fr,0.4fr,0.4fr] gap-2 items-end">
+                      <div className="space-y-2">
+                        <input
+                          className="input-field"
+                          value={item.description}
+                          onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
+                          placeholder="Item name"
+                          required
+                        />
+                      </div>
+
+                        <div className="space-y-1">
                           <input
-                            className="input-field"
-                            value={item.description}
-                            onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
-                            placeholder="Enter item name"
+                            type="number"
+                            min="0"
+                            className="input-field text-right"
+                            value={item.quantity}
+                            onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
                             required
                           />
                         </div>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-slate-600">Qty</label>
-                        <input
-                          type="number"
-                          min="0"
-                          className="input-field"
-                          value={item.quantity}
-                          onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-slate-600">Unit</label>
-                        <select
-                          className="select-field"
-                          value={item.unit || 'number'}
-                          onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
-                          disabled={Boolean(item.product)}
-                        >
-                          <option value="number">number</option>
-                          <option value="kg">kg</option>
-                          <option value="g">g</option>
-                          <option value="l">l</option>
-                          <option value="ml">ml</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-slate-600">Price (LKR)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          className="input-field"
-                          value={item.price}
-                          onChange={(e) => handleItemChange(idx, 'price', e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="flex items-center justify-between pb-1">
-                        <div className="text-sm font-semibold text-slate-800">{formatCurrency(item.quantity * item.price)}</div>
-                        <button
-                          type="button"
-                          className="text-sm text-rose-600 hover:text-rose-700"
-                          onClick={() => handleRemoveItem(idx)}
-                          disabled={form.items.length === 1}
-                        >
-                          Remove
-                        </button>
-                      </div>
+
+                        <div className="space-y-1">
+                          <select
+                            className="select-field"
+                            value={item.unit || 'number'}
+                            onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                            disabled={Boolean(item.product)}
+                          >
+                            <option value="number">number</option>
+                            <option value="kg">kg</option>
+                            <option value="g">g</option>
+                            <option value="l">l</option>
+                            <option value="ml">ml</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <input
+                            type="number"
+                            min="0"
+                            className="input-field text-right"
+                            value={item.price}
+                            onChange={(e) => handleItemChange(idx, 'price', e.target.value)}
+                            required
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-sm font-semibold text-slate-800 text-right w-full">
+                            {formatCurrency(item.quantity * item.price)}
+                          </div>
+                          <button
+                            type="button"
+                            className="text-xs text-rose-600 hover:text-rose-700"
+                            onClick={() => handleRemoveItem(idx)}
+                            disabled={form.items.length === 1}
+                          >
+                            Remove
+                          </button>
+                        </div>
                     </div>
                   ))}
+
+                  <div className="flex items-center justify-between">
+                    <button type="button" onClick={handleAddItem} className="btn-secondary">
+                      + Add item
+                    </button>
+                    <div className="text-xs text-slate-500">Invoice No: {form.invoiceNumber}</div>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">Notes</label>
-                <textarea
-                  className="textarea-field"
-                  rows="3"
-                  value={form.notes}
-                  onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Payment terms or delivery notes"
-                />
-              </div>
+              <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Notes</label>
+                  <textarea
+                    className="textarea-field"
+                    rows="3"
+                    value={form.notes}
+                    onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Additional notes"
+                  />
+                </div>
 
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-between">
-                <div className="text-sm text-slate-600 space-y-1">
-                  <p>Subtotal: <span className="font-semibold text-slate-900">{formatCurrency(totals.subtotal)}</span></p>
-                  <p>Tax ({form.taxRate}%): <span className="font-semibold text-slate-900">{formatCurrency(totals.taxAmount)}</span></p>
-                  <p>Discount ({form.discountRate}%): <span className="font-semibold text-slate-900">{formatCurrency(totals.discountAmount)}</span></p>
-                  <p className="text-base font-semibold text-slate-900">Total: {formatCurrency(totals.total)}</p>
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowModal(false)
-                      resetForm()
-                    }}
-                    className="btn-secondary"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="btn-primary"
-                  >
-                    {saving ? 'Saving...' : 'Create Invoice'}
-                  </button>
+                <div className="rounded-lg border border-slate-200 p-4 bg-slate-50">
+                  <div className="grid grid-cols-2 gap-2 text-sm text-slate-700">
+                    <div>Savings</div>
+                    <div className="text-right">{formatCurrency(totals.discountAmount)}</div>
+                    <div>Round Off</div>
+                    <div className="text-right">{formatCurrency(0)}</div>
+                    <div>Tax</div>
+                    <div className="text-right">{formatCurrency(totals.taxAmount)}</div>
+                    <div className="font-semibold text-slate-900">Total</div>
+                    <div className="text-right font-semibold text-slate-900">{formatCurrency(totals.total)}</div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between">
+                    <div className="text-xs text-slate-600">
+                      Items: <span className="font-semibold">{form.items.length}</span>{' '}
+                      Qty:{' '}
+                      <span className="font-semibold">
+                        {form.items.reduce((s, i) => s + (Number(i.quantity) || 0), 0)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-slate-600">Payment Mode</label>
+                      <select
+                        className="select-field"
+                        value={paymentMode}
+                        onChange={(e) => setPaymentMode(e.target.value)}
+                      >
+                        <option value="cash">Cash</option>
+                        <option value="card">Card</option>
+                        <option value="bank">Bank</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between gap-3">
+                    <button type="button" onClick={handleCancel} className="btn-secondary">
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-md px-4 py-3 disabled:opacity-60"
+                      disabled={saving}
+                    >
+                      {saving ? 'Generating...' : 'Generate Invoice'}
+                    </button>
+                  </div>
                 </div>
               </div>
-              </form>
             </div>
           </div>
-        </div>
-      )}
+        </form>
+      </div>
     </div>
   )
 }

@@ -19,7 +19,7 @@ const invoiceItemSchema = new mongoose.Schema(
 const invoiceSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    customer: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true },
+    customer: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null },
     invoiceNumber: { type: String, required: true, trim: true },
     status: {
       type: String,

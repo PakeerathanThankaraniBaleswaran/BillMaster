@@ -1,10 +1,13 @@
-import { Link, Navigate, Outlet, useNavigate } from 'react-router-dom'
+import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { LogOut } from 'lucide-react'
 import SidebarNav from './SidebarNav'
 
 export default function AppShell() {
   const navigate = useNavigate()
+  const location = useLocation()
   const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+
+  const isInvoicePOS = location.pathname === '/invoices'
 
   if (!token) {
     return <Navigate to="/signin" replace />
@@ -39,31 +42,33 @@ export default function AppShell() {
         </aside>
 
         <div className="flex-1 min-w-0">
-          <header className="border-b border-gray-200 bg-white">
-            <div className="app-container py-4 flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-4">
-                <Link to="/dashboard" className="flex items-center gap-3 lg:hidden">
-                  <div className="h-9 w-9 rounded-xl bg-primary-600 text-white flex items-center justify-center font-semibold">
-                    B
-                  </div>
-                  <p className="text-sm font-semibold text-gray-900">BillMaster</p>
-                </Link>
+          {!isInvoicePOS && (
+            <header className="border-b border-gray-200 bg-white">
+              <div className="app-container py-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-4">
+                  <Link to="/dashboard" className="flex items-center gap-3 lg:hidden">
+                    <div className="h-9 w-9 rounded-xl bg-primary-600 text-white flex items-center justify-center font-semibold">
+                      B
+                    </div>
+                    <p className="text-sm font-semibold text-gray-900">BillMaster</p>
+                  </Link>
 
-                <div className="flex-1" />
+                  <div className="flex-1" />
 
-                <button type="button" onClick={handleLogout} className="btn-secondary">
-                  <LogOut className="h-4 w-4" />
-                  Logout
-                </button>
+                  <button type="button" onClick={handleLogout} className="btn-secondary">
+                    <LogOut className="h-4 w-4" />
+                    Logout
+                  </button>
+                </div>
+
+                <div className="lg:hidden">
+                  <SidebarNav variant="mobile" />
+                </div>
               </div>
+            </header>
+          )}
 
-              <div className="lg:hidden">
-                <SidebarNav variant="mobile" />
-              </div>
-            </div>
-          </header>
-
-          <main className="app-container py-8">
+          <main className={isInvoicePOS ? 'p-0' : 'app-container py-8'}>
             <Outlet />
           </main>
         </div>
