@@ -1,8 +1,180 @@
 import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
-import { customerAPI, invoiceAPI, productAPI } from '../services/api'
+import { companyAPI, customerAPI, invoiceAPI, productAPI } from '../services/api'
+import { useAuth } from '../hooks/useAuth'
 
 const newItem = () => ({ product: '', description: '', quantity: 1, unit: 'number', price: 0 })
+
+const RECEIPT_WIDTH_MM = 80
+
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;')
+
+const formatReceiptMoney = (value) => {
+  const n = Number(value || 0)
+  if (!Number.isFinite(n)) return '0.00'
+  return n.toFixed(2)
+}
+
+const formatReceiptDate = (value) => {
+  const d = value ? new Date(value) : new Date()
+  if (Number.isNaN(d.getTime())) return ''
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yyyy = d.getFullYear()
+  return `${dd}/${mm}/${yyyy}`
+}
+
+const tryOpenReceiptWindow = () => {
+  try {
+    // NOTE: In some browsers (notably Firefox), using `noopener`/`noreferrer` may cause
+    // `window.open` to return null even though the window opens. We need a window handle
+    // to inject receipt HTML and call print(), so we open without those flags.
+    return window.open('', '_blank', 'width=420,height=720')
+  } catch {
+    return null
+  }
+}
+
+const openReceiptPrintWindow = ({ invoice, company, customer, cashierName, paymentMode, printWindow }) => {
+  const w = printWindow || tryOpenReceiptWindow()
+  if (!w || w.closed) {
+    alert('Please allow pop-ups to print the bill')
+    return
+  }
+
+  const companyName = company?.businessName || 'BILL'
+  const companyAddress = [company?.address, company?.city, company?.state].filter(Boolean).join(', ')
+  const companyPhone = company?.phoneNo || ''
+
+  const customerName = customer?.name ? customer.name : 'CASH'
+  const customerMobile = customer?.phone || ''
+
+  const billNo = invoice?.invoiceNumber || ''
+  const dateText = formatReceiptDate(invoice?.invoiceDate || invoice?.createdAt)
+  const payMode = String(paymentMode || 'cash').toUpperCase()
+
+  const items = Array.isArray(invoice?.items) ? invoice.items : []
+  const rows = items
+    .map((it, i) => {
+      const name = escapeHtml(it?.description || '')
+      const qty = formatReceiptMoney(it?.quantity)
+      const mrp = formatReceiptMoney(it?.price)
+      const amt = formatReceiptMoney(it?.total ?? (Number(it?.quantity || 0) * Number(it?.price || 0)))
+      return `
+        <tr>
+          <td class="col-s">${i + 1}</td>
+          <td class="col-name">${name}</td>
+          <td class="col-num">${qty}</td>
+          <td class="col-num">${mrp}</td>
+          <td class="col-num">${amt}</td>
+        </tr>
+      `
+    })
+    .join('')
+
+  const totalText = formatReceiptMoney(invoice?.total)
+
+  const html = `<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>Bill ${escapeHtml(billNo)}</title>
+      <script>try{window.opener=null}catch(e){}</script>
+      <style>
+        @page { size: ${RECEIPT_WIDTH_MM}mm auto; margin: 4mm; }
+        * { box-sizing: border-box; }
+        body {
+          width: ${RECEIPT_WIDTH_MM}mm;
+          margin: 0 auto;
+          color: #111;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+          font-size: 12px;
+          line-height: 1.25;
+        }
+        .center { text-align: center; }
+        .title { font-weight: 700; font-size: 14px; }
+        .muted { color: #333; }
+        hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
+        .row { display: flex; justify-content: space-between; gap: 10px; }
+        .row span:first-child { min-width: 90px; }
+        table { width: 100%; border-collapse: collapse; }
+        thead th {
+          font-weight: 700;
+          border-bottom: 1px solid #000;
+          padding: 3px 0;
+          font-size: 11px;
+        }
+        td { padding: 3px 0; vertical-align: top; font-size: 11px; }
+        .col-s { width: 18px; }
+        .col-name { width: auto; padding-right: 6px; }
+        .col-num { text-align: right; width: 64px; }
+        .total { font-weight: 700; font-size: 13px; }
+        .footer { margin-top: 8px; }
+      </style>
+    </head>
+    <body>
+      <div class="center title">${escapeHtml(companyName)}</div>
+      ${companyAddress ? `<div class="center muted">${escapeHtml(companyAddress)}</div>` : ''}
+      ${companyPhone ? `<div class="center muted">${escapeHtml(companyPhone)}</div>` : ''}
+
+      <hr />
+
+      <div class="row"><span>Customer:</span><span>${escapeHtml(customerName)}</span></div>
+      <div class="row"><span>Mobile:</span><span>${escapeHtml(customerMobile)}</span></div>
+      <div class="row"><span>User:</span><span>${escapeHtml(cashierName || '')}</span></div>
+      <div class="row"><span>Bill No.</span><span>${escapeHtml(billNo)}</span></div>
+      <div class="row"><span>Date</span><span>${escapeHtml(dateText)}</span></div>
+
+      <hr />
+
+      <table>
+        <thead>
+          <tr>
+            <th class="col-s">S.</th>
+            <th class="col-name">NAME</th>
+            <th class="col-num">QTY</th>
+            <th class="col-num">MRP</th>
+            <th class="col-num">AMT</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+
+      <hr />
+
+      <div class="row total"><span>Grand Total</span><span>${totalText}</span></div>
+      <div class="row"><span>${escapeHtml(payMode)}</span><span>${totalText}</span></div>
+
+      <div class="footer center muted">Thank you!</div>
+    </body>
+  </html>`
+
+  w.document.open()
+  w.document.write(html)
+  w.document.close()
+  w.focus()
+
+  const doPrint = () => {
+    try {
+      w.print()
+      w.onafterprint = () => w.close()
+    } catch {
+      // ignore
+    }
+  }
+
+  // Give the new window a moment to render
+  setTimeout(doPrint, 250)
+}
 
 const formatCurrency = (value) =>
   Number(value || 0).toLocaleString('en-LK', {
@@ -13,7 +185,9 @@ const formatCurrency = (value) =>
   })
 
 export default function Invoices() {
+  const { user } = useAuth()
   const [loading, setLoading] = useState(true)
+  const [company, setCompany] = useState(null)
   const [customers, setCustomers] = useState([])
   const [products, setProducts] = useState([])
   const [saving, setSaving] = useState(false)
@@ -28,19 +202,27 @@ export default function Invoices() {
     taxRate: 0,
     discountRate: 0,
     status: 'draft',
-    notes: '',
     items: [newItem()],
   })
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [custRes, prodRes] = await Promise.all([customerAPI.list(), productAPI.list()])
+        const [custRes, prodRes, companyRes] = await Promise.all([
+          customerAPI.list(),
+          productAPI.list(),
+          companyAPI.getCompanyProfile().catch(() => null),
+        ])
         const custPayload = custRes.data || custRes
         const prodPayload = prodRes.data || prodRes
 
         setCustomers(custPayload.data?.customers || custPayload.customers || [])
         setProducts(prodPayload.data?.products || prodPayload.products || [])
+
+        if (companyRes) {
+          const companyPayload = companyRes.data || companyRes
+          setCompany(companyPayload.data?.company || companyPayload.company || null)
+        }
       } catch (error) {
         console.error('Failed to load invoices data', error)
       } finally {
@@ -138,13 +320,28 @@ export default function Invoices() {
       taxRate: 0,
       discountRate: 0,
       status: 'draft',
-      notes: '',
       items: [newItem()],
     })
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+
+    // Open print window synchronously to avoid popup blockers.
+    // We'll fill and print it only after the invoice is successfully created.
+    const printWindow = tryOpenReceiptWindow()
+    if (printWindow && !printWindow.closed) {
+      try {
+        printWindow.document.open()
+        printWindow.document.write(
+          '<!doctype html><html><head><meta charset="utf-8" /><title>Generating…</title></head><body style="font-family:system-ui,Segoe UI,Arial,sans-serif;padding:12px;">Generating bill…</body></html>'
+        )
+        printWindow.document.close()
+      } catch {
+        // ignore
+      }
+    }
+
     if (!form.invoiceNumber.trim()) {
       alert('Invoice number is required')
       return
@@ -172,7 +369,6 @@ export default function Invoices() {
         invoiceNumber: form.invoiceNumber,
         customer: form.customer || undefined,
         status: form.status,
-        notes: form.notes,
         taxRate: Number(form.taxRate || 0),
         discountRate: Number(form.discountRate || 0),
         items: payloadItems,
@@ -183,6 +379,19 @@ export default function Invoices() {
       const invoice = body.data?.invoice || body.invoice
       const lowStock = body.warnings?.lowStock
       if (invoice) {
+        const customerDoc = invoice?.customer
+          ? customers.find((c) => c._id === invoice.customer) || null
+          : null
+
+        openReceiptPrintWindow({
+          invoice,
+          company,
+          customer: customerDoc,
+          cashierName: user?.name || user?.email || '',
+          paymentMode,
+          printWindow,
+        })
+
         resetForm()
         setForm((prev) => ({ ...prev, invoiceNumber: `INV-${Date.now()}` }))
         setItemLookupQuery('')
@@ -323,59 +532,7 @@ export default function Invoices() {
             </aside>
 
             <div className="p-5 overflow-y-auto">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-600">Phone No.</label>
-                  <input
-                    className="input-field"
-                    value={selectedCustomer?.phone || ''}
-                    readOnly
-                    placeholder="—"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-600">Customer</label>
-                  <select
-                    className="select-field"
-                    value={form.customer}
-                    onChange={(e) => setForm((prev) => ({ ...prev, customer: e.target.value }))}
-                  >
-                    <option value="">Select customer</option>
-                    {customers.map((c) => (
-                      <option key={c._id} value={c._id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-600">Discount (%)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    className="input-field"
-                    value={form.discountRate}
-                    onChange={(e) => setForm((prev) => ({ ...prev, discountRate: Number(e.target.value) || 0 }))}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-600">Tax (%)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    className="input-field"
-                    value={form.taxRate}
-                    onChange={(e) => setForm((prev) => ({ ...prev, taxRate: Number(e.target.value) || 0 }))}
-                  />
-                </div>
-              </div>
-
-              <div className="mt-5 rounded-lg border border-slate-200 overflow-hidden">
+              <div className="rounded-lg border border-slate-200 overflow-hidden">
                 <div className="grid grid-cols-[1.2fr,0.25fr,0.25fr,0.4fr,0.4fr] gap-2 bg-primary-600 text-white text-xs font-semibold px-3 py-2">
                   <div>Particular / Item</div>
                   <div className="text-right">Qty</div>
@@ -459,18 +616,7 @@ export default function Invoices() {
                 </div>
               </div>
 
-              <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700">Notes</label>
-                  <textarea
-                    className="textarea-field"
-                    rows="3"
-                    value={form.notes}
-                    onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Additional notes"
-                  />
-                </div>
-
+              <div className="mt-5">
                 <div className="rounded-lg border border-slate-200 p-4 bg-slate-50">
                   <div className="grid grid-cols-2 gap-2 text-sm text-slate-700">
                     <div>Savings</div>
@@ -517,6 +663,58 @@ export default function Invoices() {
                       {saving ? 'Generating...' : 'Generate Invoice'}
                     </button>
                   </div>
+                </div>
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">Phone No.</label>
+                  <input
+                    className="input-field"
+                    value={selectedCustomer?.phone || ''}
+                    readOnly
+                    placeholder="—"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">Customer</label>
+                  <select
+                    className="select-field"
+                    value={form.customer}
+                    onChange={(e) => setForm((prev) => ({ ...prev, customer: e.target.value }))}
+                  >
+                    <option value="">Select customer</option>
+                    {customers.map((c) => (
+                      <option key={c._id} value={c._id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">Discount (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    className="input-field"
+                    value={form.discountRate}
+                    onChange={(e) => setForm((prev) => ({ ...prev, discountRate: Number(e.target.value) || 0 }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">Tax (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    className="input-field"
+                    value={form.taxRate}
+                    onChange={(e) => setForm((prev) => ({ ...prev, taxRate: Number(e.target.value) || 0 }))}
+                  />
                 </div>
               </div>
             </div>
