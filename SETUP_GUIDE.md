@@ -31,6 +31,12 @@ CORS_ORIGIN=http://localhost:3000
 - For MongoDB Atlas, use: `mongodb+srv://username:password@cluster.mongodb.net/billmaster`
 - Generate a strong JWT_SECRET (e.g., use `openssl rand -base64 32`)
 
+### ✅ Local vs Atlas (Important)
+- **Local MongoDB** = Data is stored on the same computer where MongoDB is installed (e.g., the client’s laptop).
+- **MongoDB Atlas** = Data is stored in the cloud (internet required).
+
+If your requirement is “client laptop-லேயே data store ஆகணும்”, choose **Local MongoDB**.
+
 ### Frontend Configuration
 Create `frontend/.env` file with the following:
 ```env
@@ -50,8 +56,44 @@ sudo systemctl start mongod
 mongosh
 ```
 
+**Local MongoDB (Windows - Client Laptop):**
+1. Download and install **MongoDB Community Server**:
+  - During installation, keep **Install MongoDB as a Service** enabled.
+  - Optional: Install **MongoDB Compass** (GUI).
+2. Start MongoDB service:
+  - Open **Services** → start **MongoDB Server**
+  - OR run in admin CMD:
+    ```bat
+    net start MongoDB
+    ```
+3. Verify MongoDB is running:
+  - Open **Command Prompt** and run:
+    ```bat
+    mongosh
+    ```
+4. Use local connection string in [backend/.env](backend/.env):
+  - Recommended:
+    ```env
+    MONGODB_URI=mongodb://127.0.0.1:27017/billmaster
+    ```
+
+**Where is data stored (Windows)?**
+- If installed as a service with default settings, MongoDB stores files under a data directory configured in the service (commonly `C:\Program Files\MongoDB\Server\<version>\data\` or `C:\data\db`).
+- You can confirm it inside `mongosh` with:
+  - `db.adminCommand({ getCmdLineOpts: 1 })`
+
 **MongoDB Atlas:**
 - No local setup needed, just use your connection string in `.env`
+
+### MongoDB Atlas Setup (Quick)
+1. Create an account and a cluster
+2. **Database Access**: create a DB user (username/password)
+3. **Network Access**: allow your client IP (avoid `0.0.0.0/0` in production)
+4. **Connect → Drivers**: copy the connection string
+5. Paste in [backend/.env](backend/.env):
+  ```env
+  MONGODB_URI=mongodb+srv://<username>:<password>@<cluster-host>/<db>?retryWrites=true&w=majority
+  ```
 
 ## 🚀 Step 4: Run the Application
 

@@ -35,3 +35,9 @@ build/
 *.tmp
 *.temp
 
+node_modules
+.env
+dist
+build
+.vite
+.DS_Store
