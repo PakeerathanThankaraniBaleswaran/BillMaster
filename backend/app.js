@@ -15,6 +15,8 @@ const configuredOrigins = (process.env.CORS_ORIGIN || '')
 const isDev = (process.env.NODE_ENV || 'development') !== 'production'
 const allowedOrigins = Array.from(new Set([...configuredOrigins]))
 
+const vercelBillMasterOriginRegex = /^https:\/\/bill-master(?:-[a-z0-9-]+)?\.vercel\.app$/i
+
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -23,6 +25,11 @@ app.use(
 
       // In dev, allow any localhost/127.0.0.1 port (Vite may auto-switch ports)
       if (isDev && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        return callback(null, true)
+      }
+
+      // Allow Vercel production/preview URLs for this project
+      if (vercelBillMasterOriginRegex.test(origin)) {
         return callback(null, true)
       }
 
