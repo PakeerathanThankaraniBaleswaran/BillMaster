@@ -36,6 +36,7 @@ const openReceiptPrintWindow = ({ invoice, company, customer, cashierName, payme
   const companyAddress = [company?.address, company?.city, company?.state].filter(Boolean).join(', ')
   const companyPhone = company?.phoneNo || ''
   const customerName = customer?.name || 'CASH'
+  const customerPhone = customer?.phone || ''
   const billNo = invoice?.invoiceNumber || ''
   const dateText = formatReceiptDate(invoice?.invoiceDate || invoice?.createdAt)
   const payMode = String(paymentMode || 'cash').toUpperCase()
@@ -80,6 +81,7 @@ const openReceiptPrintWindow = ({ invoice, company, customer, cashierName, payme
     ${companyPhone ? `<div class="center">${escapeHtml(companyPhone)}</div>` : ''}
     <hr />
     <div>Customer: ${escapeHtml(customerName)}</div>
+    ${customerPhone ? `<div>Phone: ${escapeHtml(customerPhone)}</div>` : ''}
     <div>Bill No: ${escapeHtml(billNo)}</div>
     <div>Date: ${escapeHtml(dateText)}</div>
     <hr />
@@ -198,15 +200,24 @@ export default function Invoices() {
     if (!form.invoiceNumber.trim()) { alert('Bill No required'); return }
     const filteredItems = form.items.filter(i=>i.description && i.quantity>0 && i.price>=0)
     if (!filteredItems.length) { alert('Add at least one item'); return }
+    if (paymentMode === 'credit' && !form.customer) { alert('Select a customer for credit invoices'); return }
+
+    const invoiceStatus = paymentMode === 'credit' ? 'sent' : 'paid'
 
     const payloadItems = filteredItems.map(i=>({ product:i.product||undefined, quantity:i.quantity, unit:i.unit||'number', price:i.price, description:i.description }))
     setSaving(true)
     try {
-      const res = await invoiceAPI.create({ invoiceNumber:form.invoiceNumber, customer:form.customer||undefined, status:form.status, paymentMode, items:payloadItems, invoiceDate:form.invoiceDate })
+      const res = await invoiceAPI.create({ invoiceNumber:form.invoiceNumber, customer:form.customer||undefined, status:invoiceStatus, paymentMode, items:payloadItems, invoiceDate:form.invoiceDate })
       const body = res.data || res
       const invoice = body.data?.invoice || body.invoice
       const customerDoc = invoice?.customer ? customers.find(c=>c._id===invoice.customer)||null : null
-      openReceiptPrintWindow({ invoice, company, customer:customerDoc, cashierName:user?.name||user?.email||'', paymentMode })
+      openReceiptPrintWindow({
+        invoice: { ...invoice, customer: customerDoc },
+        company,
+        customer: customerDoc,
+        cashierName: user?.name || user?.email || '',
+        paymentMode,
+      })
       setLastInvoiceNumber(invoice?.invoiceNumber || form.invoiceNumber)
       setShowSuccess(true)
       setTimeout(() => setShowSuccess(false), 3000)

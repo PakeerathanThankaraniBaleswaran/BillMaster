@@ -76,6 +76,14 @@ export default function CashIn() {
     setCounts((prev) => ({ ...prev, [value]: Number.isFinite(parsed) ? Math.max(parsed, 0) : 0 }))
   }
 
+  const handleAdjustCount = (value, delta) => {
+    setCounts((prev) => {
+      const current = prev[value] || 0
+      const next = Math.max(current + delta, 0)
+      return { ...prev, [value]: next }
+    })
+  }
+
   const handleClear = () => {
     setCounts(denominations.reduce((acc, d) => ({ ...acc, [d.value]: 0 }), {}))
     setNotes('')
@@ -109,7 +117,7 @@ export default function CashIn() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl mx-auto px-4 pb-10">
         <header className="flex items-start justify-between gap-4 mb-8">
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-2xl bg-primary-50 flex items-center justify-center text-primary-700 shadow-sm border border-primary-100">
@@ -127,16 +135,16 @@ export default function CashIn() {
         </header>
 
           <div className="grid md:grid-cols-3 gap-4 mb-6">
-            <div className="rounded-xl border border-primary-100 bg-primary-700 text-white p-5 shadow-sm">
-              <p className="text-sm">Total cash today</p>
+            <div className="rounded-2xl border border-primary-100 bg-gradient-to-br from-primary-600 via-primary-600 to-primary-700 text-white p-5 shadow-lg shadow-primary-200/60 transition-transform hover:-translate-y-0.5">
+              <p className="text-sm text-primary-50">Total cash today</p>
               <p className="text-3xl font-semibold mt-2">{formatCurrency(summary.totalCashToday)}</p>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-sm text-slate-600">Total entries</p>
-              <p className="text-3xl font-semibold mt-2">{summary.entryCount}</p>
+            <div className="rounded-2xl border border-slate-200 bg-white/90 backdrop-blur-sm p-5 shadow-md hover:shadow-lg transition-shadow">
+              <p className="text-sm text-slate-500">Total entries</p>
+              <p className="text-3xl font-semibold text-slate-800 mt-2">{summary.entryCount}</p>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-sm text-slate-600">Last entry</p>
+            <div className="rounded-2xl border border-slate-200 bg-white/90 backdrop-blur-sm p-5 shadow-md hover:shadow-lg transition-shadow">
+              <p className="text-sm text-slate-500">Last entry</p>
               <p className="text-lg font-semibold mt-2 text-slate-800">
                 {summary.lastEntryAmount > 0 ? formatCurrency(summary.lastEntryAmount) : 'No entries yet'}
               </p>
@@ -148,8 +156,8 @@ export default function CashIn() {
             </div>
           </div>
 
-        <div className="bg-white rounded-2xl shadow-md border border-slate-100 overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+        <div className="bg-white/90 backdrop-blur-md rounded-3xl shadow-xl border border-slate-100 overflow-hidden max-w-4xl mx-auto">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50">
             <div>
               <p className="text-lg font-semibold text-slate-800">New Entry</p>
               <p className="text-sm text-slate-500">Enter cash denominations</p>
@@ -159,39 +167,53 @@ export default function CashIn() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <form onSubmit={handleSubmit} className="p-5 space-y-5">
             <div className="space-y-3">
-              {totals.perRow.map((row) => (
-                <div
-                  key={row.value}
-                  className="grid grid-cols-[110px,1fr,90px] items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
-                >
-                  <div>
-                    <p className="text-lg font-semibold text-slate-800">{row.label}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-slate-500">×</span>
-                    <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {totals.perRow.map((row) => (
+                  <div
+                    key={row.value}
+                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm hover:border-primary-200 hover:bg-white transition-all"
+                  >
+                    <div className="flex items-center gap-2 min-w-[96px]">
+                      <p className="text-base font-semibold text-slate-800">{row.label}</p>
+                      <span className="text-slate-500">×</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleAdjustCount(row.value, -1)}
+                        className="h-9 w-9 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                      >
+                        -
+                      </button>
                       <input
                         type="number"
                         min="0"
-                        className="w-full md:w-28 px-3 py-2 text-right text-slate-800 bg-transparent outline-none"
+                        className="w-16 md:w-20 px-2.5 py-1.5 text-right text-slate-800 bg-white border border-slate-200 rounded-lg focus:border-primary-300 focus:ring-2 focus:ring-primary-100"
                         value={row.count}
                         onChange={(e) => handleCountChange(row.value, e.target.value)}
                       />
+                      <button
+                        type="button"
+                        onClick={() => handleAdjustCount(row.value, 1)}
+                        className="h-9 w-9 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <div className="ml-auto text-right text-slate-900 font-semibold min-w-[96px]">
+                      {row.subtotal === 0 ? '—' : formatCurrency(row.subtotal, { minimumFractionDigits: 0 })}
                     </div>
                   </div>
-                  <div className="text-right text-slate-900 font-semibold">
-                    {row.subtotal === 0 ? '—' : formatCurrency(row.subtotal, { minimumFractionDigits: 0 })}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">Remarks (Optional)</label>
               <textarea
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm shadow-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm shadow-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                 rows="3"
                 placeholder="Add notes about this collection..."
                 value={notes}
@@ -219,7 +241,7 @@ export default function CashIn() {
           </form>
         </div>
 
-        <div className="mt-6 bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+        <div className="mt-6 bg-white/80 backdrop-blur-sm rounded-3xl shadow-md border border-slate-100 p-6">
           <p className="text-lg font-semibold text-slate-800 mb-2">{"Today's Entries"}</p>
           <p className="text-sm text-slate-500">No entries recorded today.</p>
         </div>
