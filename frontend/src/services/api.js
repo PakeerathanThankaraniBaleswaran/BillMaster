@@ -52,6 +52,11 @@ export const cashInAPI = {
   getSummary: () => api.get('/cash-in/summary'),
 }
 
+// Cash Out API functions
+export const cashOutAPI = {
+  createEntry: (payload) => api.post('/cash-out/out', payload),
+}
+
 // Inventory / Data Entry API functions
 export const inventoryAPI = {
   createItem: (payload) => api.post('/inventory', payload),
@@ -88,5 +93,10 @@ export const invoiceAPI = {
 // Summary API functions
 export const summaryAPI = {
   get: () => api.get('/summary'),
+}
+
+// Reports API functions
+export const reportsAPI = {
+  get: (params) => api.get('/reports', { params }),
 }
 

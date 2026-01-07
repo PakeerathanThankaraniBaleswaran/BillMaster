@@ -7,6 +7,11 @@ const cashEntrySchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    type: {
+      type: String,
+      enum: ['in', 'out'],
+      default: 'in',
+    },
     denominations: {
       type: Map,
       of: {

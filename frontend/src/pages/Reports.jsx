@@ -1,32 +1,27 @@
 import { useEffect, useMemo, useState } from 'react'
-import { summaryAPI } from '../services/api'
+import { reportsAPI } from '../services/api'
 import DataTable from '../components/ui/DataTable'
 
-const toCsv = (rows, columns) => {
-  const escapeCell = (v) => {
-    const s = v == null ? '' : String(v)
-    const needsQuotes = /[",\n]/.test(s)
-    const escaped = s.replaceAll('"', '""')
-    return needsQuotes ? `"${escaped}"` : escaped
-  }
-
-  const header = columns.map((c) => escapeCell(c.header)).join(',')
-  const body = rows
-    .map((r) => columns.map((c) => escapeCell(typeof c.value === 'function' ? c.value(r) : r?.[c.key])).join(','))
-    .join('\n')
-  return `${header}\n${body}`
+const formatMoney = (value) => {
+  const n = Number(value || 0)
+  if (!Number.isFinite(n)) return '0.00'
+  return n.toFixed(2)
 }
 
-const downloadText = (filename, text) => {
-  const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+const monthInputValue = (d) => {
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  return `${yyyy}-${mm}`
+}
+
+const monthToRange = (yyyyMm) => {
+  const [y, m] = String(yyyyMm || '').split('-').map((v) => Number(v))
+  const safeY = Number.isFinite(y) ? y : new Date().getFullYear()
+  const safeM = Number.isFinite(m) ? m : new Date().getMonth() + 1
+  const from = new Date(safeY, safeM - 1, 1)
+  const to = new Date(safeY, safeM, 0)
+  to.setHours(23, 59, 59, 999)
+  return { from, to }
 }
 
 function StatCard({ label, value }) {
@@ -38,87 +33,198 @@ function StatCard({ label, value }) {
   )
 }
 
+function MiniBarChart({ title, rows, valueKey, labelKey }) {
+  const values = rows.map((r) => Number(r?.[valueKey] || 0))
+  const max = Math.max(1, ...values)
+
+  return (
+    <div className="card">
+      <div className="text-sm font-semibold text-gray-900">{title}</div>
+      <div className="mt-3 h-28 flex items-end gap-1">
+        {rows.map((r) => {
+          const v = Number(r?.[valueKey] || 0)
+          const h = Math.max(2, Math.round((v / max) * 100))
+          const label = String(r?.[labelKey] || '')
+          return (
+            <div key={label} className="flex-1 min-w-[6px]" title={`${label}: ${formatMoney(v)}`}>
+              <div className="w-full bg-primary-600 rounded-sm" style={{ height: `${h}%` }} />
+            </div>
+          )
+        })}
+      </div>
+      <div className="mt-2 text-xs text-gray-500">Max: {formatMoney(max)}</div>
+    </div>
+  )
+}
+
 export default function Reports() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [summary, setSummary] = useState(null)
+  const [selectedMonth, setSelectedMonth] = useState(monthInputValue(new Date()))
+  const [report, setReport] = useState(null)
 
-  const invoiceColumns = useMemo(
-    () => [
-      { key: 'invoiceNumber', header: 'Invoice #', sortable: true },
-      {
-        key: 'customerName',
-        header: 'Customer',
-        sortable: true,
-        render: (r) => r?.customer?.name || r?.customerName || '—',
-        sortValue: (r) => r?.customer?.name || r?.customerName || '',
-      },
-      { key: 'status', header: 'Status', sortable: true },
-      {
-        key: 'total',
-        header: 'Total',
-        sortable: true,
-        align: 'right',
-        sortValue: (r) => Number(r?.total ?? 0),
-        render: (r) => {
-          const n = Number(r?.total)
-          return Number.isFinite(n) ? n.toFixed(2) : '—'
-        },
-      },
-      {
-        key: 'createdAt',
-        header: 'Date',
-        sortable: true,
-        sortValue: (r) => (r?.createdAt ? new Date(r.createdAt).getTime() : 0),
-        render: (r) => (r?.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'),
-      },
-    ],
-    []
-  )
-
-  const load = async () => {
+  const load = async (monthValue = selectedMonth) => {
     setLoading(true)
     setError('')
     try {
-      const res = await summaryAPI.get()
-      setSummary(res?.data || null)
+      const { from, to } = monthToRange(monthValue)
+      const res = await reportsAPI.get({
+        from: from.toISOString(),
+        to: to.toISOString(),
+        months: 12,
+      })
+      const payload = res?.data || res
+      setReport(payload?.data || payload || null)
     } catch (e) {
-      setError(e?.response?.data?.error || e?.message || 'Failed to load reports')
+      setError(e?.response?.data?.message || e?.message || 'Failed to load reports')
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    load()
-  }, [])
+    load(selectedMonth)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth])
 
-  const counts = summary?.counts || {}
-  const invoiceAgg = summary?.invoices || {}
-  const recent = summary?.recentInvoices || []
+  const dailyRows = report?.daily || []
+  const monthlyRows = report?.monthly || []
 
-  const handleExportRecent = () => {
-    const exportCols = [
-      { key: 'invoiceNumber', header: 'Invoice #', value: (r) => r?.invoiceNumber || '' },
-      { key: 'customer', header: 'Customer', value: (r) => r?.customer?.name || r?.customerName || '' },
-      { key: 'status', header: 'Status', value: (r) => r?.status || '' },
-      { key: 'total', header: 'Total', value: (r) => r?.total ?? '' },
-      { key: 'createdAt', header: 'Date', value: (r) => (r?.createdAt ? new Date(r.createdAt).toISOString() : '') },
-    ]
-    const csv = toCsv(recent, exportCols)
-    downloadText(`recent-invoices-${new Date().toISOString().slice(0, 10)}.csv`, csv)
-  }
+  const dailyTotals = useMemo(() => {
+    const cashIn = dailyRows.reduce((s, r) => s + Number(r?.cashIn || 0), 0)
+    const cashOut = dailyRows.reduce((s, r) => s + Number(r?.cashOut || 0), 0)
+    const salesTotal = dailyRows.reduce((s, r) => s + Number(r?.salesTotal || 0), 0)
+    const billCount = dailyRows.reduce((s, r) => s + Number(r?.billCount || 0), 0)
+    return { cashIn, cashOut, netCash: cashIn - cashOut, salesTotal, billCount }
+  }, [dailyRows])
+
+  const dailyColumns = useMemo(
+    () => [
+      { key: 'day', header: 'Date', sortable: true },
+      {
+        key: 'cashIn',
+        header: 'Cash In',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.cashIn || 0),
+        render: (r) => formatMoney(r?.cashIn),
+      },
+      {
+        key: 'cashOut',
+        header: 'Cash Out',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.cashOut || 0),
+        render: (r) => formatMoney(r?.cashOut),
+      },
+      {
+        key: 'netCash',
+        header: 'Net Cash',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.netCash || 0),
+        render: (r) => formatMoney(r?.netCash),
+      },
+      {
+        key: 'salesTotal',
+        header: 'Sales',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.salesTotal || 0),
+        render: (r) => formatMoney(r?.salesTotal),
+      },
+      {
+        key: 'billCount',
+        header: 'Bills',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.billCount || 0),
+        render: (r) => String(r?.billCount ?? 0),
+      },
+      {
+        key: 'topBill',
+        header: 'Top Bill',
+        sortable: false,
+        render: (r) => (r?.topBill?.invoiceNumber ? `${r.topBill.invoiceNumber} (${formatMoney(r.topBill.total)})` : '—'),
+      },
+      {
+        key: 'topProduct',
+        header: 'Top Product',
+        sortable: false,
+        render: (r) => (r?.topProduct?.name ? `${r.topProduct.name} (Qty ${formatMoney(r.topProduct.qty)})` : '—'),
+      },
+    ],
+    []
+  )
+
+  const monthlyColumns = useMemo(
+    () => [
+      { key: 'month', header: 'Month', sortable: true },
+      {
+        key: 'cashIn',
+        header: 'Cash In',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.cashIn || 0),
+        render: (r) => formatMoney(r?.cashIn),
+      },
+      {
+        key: 'cashOut',
+        header: 'Cash Out',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.cashOut || 0),
+        render: (r) => formatMoney(r?.cashOut),
+      },
+      {
+        key: 'netCash',
+        header: 'Net Cash',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.netCash || 0),
+        render: (r) => formatMoney(r?.netCash),
+      },
+      {
+        key: 'salesTotal',
+        header: 'Sales',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.salesTotal || 0),
+        render: (r) => formatMoney(r?.salesTotal),
+      },
+      {
+        key: 'billCount',
+        header: 'Bills',
+        sortable: true,
+        align: 'right',
+        sortValue: (r) => Number(r?.billCount || 0),
+        render: (r) => String(r?.billCount ?? 0),
+      },
+    ],
+    []
+  )
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-          <p className="text-gray-600 mt-1">Key business metrics and recent activity.</p>
+          <p className="text-gray-600 mt-1">Day-wise and monthly summaries.</p>
         </div>
-        <button type="button" onClick={load} className="btn-secondary" disabled={loading}>
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-600">Month</label>
+            <input
+              type="month"
+              className="input-field"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+            />
+          </div>
+          <button type="button" onClick={() => load(selectedMonth)} className="btn-secondary" disabled={loading}>
+            Refresh
+          </button>
+        </div>
       </div>
 
       {error ? (
@@ -129,38 +235,47 @@ export default function Reports() {
 
       {loading ? (
         <div className="card text-gray-600">Loading...</div>
-      ) : !summary ? (
+      ) : !report ? (
         <div className="card text-gray-600">No data.</div>
       ) : (
         <>
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <StatCard label="Customers" value={counts.customers ?? 0} />
-            <StatCard label="Products" value={counts.products ?? 0} />
-            <StatCard label="Invoices" value={counts.invoices ?? 0} />
+          <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <StatCard label="Cash In" value={formatMoney(dailyTotals.cashIn)} />
+            <StatCard label="Cash Out" value={formatMoney(dailyTotals.cashOut)} />
+            <StatCard label="Net Cash" value={formatMoney(dailyTotals.netCash)} />
+            <StatCard label="Sales" value={formatMoney(dailyTotals.salesTotal)} />
           </section>
 
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <StatCard label="Draft" value={invoiceAgg.draft ?? 0} />
-            <StatCard label="Sent" value={invoiceAgg.sent ?? 0} />
-            <StatCard label="Overdue" value={invoiceAgg.overdue ?? 0} />
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <MiniBarChart
+              title="Daily Sales (Selected Month)"
+              rows={dailyRows}
+              valueKey="salesTotal"
+              labelKey="day"
+            />
+            <MiniBarChart
+              title="Monthly Sales (Last 12 Months)"
+              rows={monthlyRows}
+              valueKey="salesTotal"
+              labelKey="month"
+            />
           </section>
 
           <section className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-gray-900">Recent invoices</h2>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={handleExportRecent}
-                disabled={recent.length === 0}
-              >
-                Export CSV
-              </button>
-            </div>
-            {recent.length === 0 ? (
-              <div className="card text-gray-600">No recent invoices.</div>
+            <h2 className="text-lg font-semibold text-gray-900">Day-wise</h2>
+            {dailyRows.length === 0 ? (
+              <div className="card text-gray-600">No daily data.</div>
             ) : (
-              <DataTable columns={invoiceColumns} rows={recent} rowKey={(r) => r._id} />
+              <DataTable columns={dailyColumns} rows={dailyRows} rowKey={(r) => r.day} />
+            )}
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold text-gray-900">Monthly</h2>
+            {monthlyRows.length === 0 ? (
+              <div className="card text-gray-600">No monthly data.</div>
+            ) : (
+              <DataTable columns={monthlyColumns} rows={monthlyRows} rowKey={(r) => r.month} />
             )}
           </section>
         </>

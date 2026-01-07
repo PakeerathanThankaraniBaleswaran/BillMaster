@@ -20,7 +20,9 @@ const computeTotal = (denominations = {}) => {
 // @route   POST /api/cash-in
 // @access  Private
 export const createCashEntry = asyncHandler(async (req, res, next) => {
-  const { denominations = {}, notes = '' } = req.body || {}
+  const { denominations = {}, notes = '', type = 'in' } = req.body || {}
+
+  const safeType = type === 'out' ? 'out' : 'in'
 
   const totalAmount = computeTotal(denominations)
 
@@ -30,6 +32,7 @@ export const createCashEntry = asyncHandler(async (req, res, next) => {
 
   const entry = await CashEntry.create({
     user: req.user.id,
+    type: safeType,
     denominations,
     totalAmount,
     notes,
@@ -41,6 +44,14 @@ export const createCashEntry = asyncHandler(async (req, res, next) => {
       entry,
     },
   })
+})
+
+// @desc    Create cash-out entry
+// @route   POST /api/cash-out
+// @access  Private
+export const createCashOutEntry = asyncHandler(async (req, res, next) => {
+  req.body = { ...(req.body || {}), type: 'out' }
+  return createCashEntry(req, res, next)
 })
 
 // @desc    Get today summary for cash-in
