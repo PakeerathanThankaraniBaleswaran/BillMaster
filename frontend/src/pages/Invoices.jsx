@@ -220,7 +220,7 @@ export default function Invoices() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-50 p-4">
-      <form onSubmit={handleSubmit} className="grid grid-cols-[360px,1fr] gap-4">
+      <form onSubmit={handleSubmit} className="grid grid-cols-[360px,1fr] gap-4 h-[calc(100vh-6rem)]">
         {/* Product Lookup */}
         <aside className="bg-white p-4 rounded border border-slate-200 flex flex-col">
           <input className="input-field mb-2" value={itemLookupQuery} onChange={e=>setItemLookupQuery(e.target.value)} placeholder="Search product..." />
@@ -249,62 +249,115 @@ export default function Invoices() {
         </aside>
 
         {/* Invoice Form */}
-        <div className="bg-white p-4 rounded border border-slate-200 flex flex-col">
-          <div className="overflow-y-auto flex-1">
+        <div className="bg-white p-4 rounded border border-slate-200 flex flex-col min-h-0">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-semibold text-slate-900">Bill</div>
+            <div className="text-xs text-slate-500">No: {form.invoiceNumber}</div>
+          </div>
+
+          <div className="grid grid-cols-[1.5fr,0.5fr,0.5fr,0.6fr,0.7fr] gap-2 text-xs font-semibold text-slate-500 border-b border-slate-200 pb-2">
+            <div>Item</div>
+            <div className="text-right">Qty</div>
+            <div>Unit</div>
+            <div className="text-right">Price</div>
+            <div className="text-right">Amount</div>
+          </div>
+
+          <div className="mt-2 flex-1 min-h-0 overflow-y-auto pr-1">
             {form.items.map((item,idx)=>(
-              <div key={idx} className="grid grid-cols-[1.5fr,0.5fr,0.5fr,0.5fr,0.5fr] gap-2 items-end mb-2">
-                <input className="input-field" value={item.description} onChange={e=>handleItemChange(idx,'description',e.target.value)} placeholder="Item name" required />
-                <input type="number" min="0" className="input-field text-right" value={item.quantity} onChange={e=>handleItemChange(idx,'quantity',e.target.value)} required />
-                <select className="select-field" value={item.unit||'number'} onChange={e=>handleItemChange(idx,'unit',e.target.value)} disabled={Boolean(item.product)}>
+              <div key={idx} className="grid grid-cols-[1.5fr,0.5fr,0.5fr,0.6fr,0.7fr] gap-2 items-end py-2 border-b border-slate-100">
+                <input
+                  className="input-field"
+                  value={item.description}
+                  onChange={e=>handleItemChange(idx,'description',e.target.value)}
+                  placeholder="Item name"
+                  required
+                />
+                <input
+                  type="number"
+                  min="0"
+                  className="input-field text-right"
+                  value={item.quantity}
+                  onChange={e=>handleItemChange(idx,'quantity',e.target.value)}
+                  required
+                />
+                <select
+                  className="select-field"
+                  value={item.unit||'number'}
+                  onChange={e=>handleItemChange(idx,'unit',e.target.value)}
+                  disabled={Boolean(item.product)}
+                >
                   <option value="number">number</option>
                   <option value="kg">kg</option>
                   <option value="g">g</option>
                   <option value="l">l</option>
                   <option value="ml">ml</option>
                 </select>
-                <input type="number" min="0" className="input-field text-right" value={item.price} onChange={e=>handleItemChange(idx,'price',e.target.value)} required />
-                <div className="flex items-center justify-between">
-                  <div className="text-right font-semibold w-full">{formatCurrency(item.quantity*item.price)}</div>
-                  <button type="button" className="text-xs text-rose-600" onClick={()=>handleRemoveItem(idx)} disabled={form.items.length===1}>Remove</button>
+                <input
+                  type="number"
+                  min="0"
+                  className="input-field text-right"
+                  value={item.price}
+                  onChange={e=>handleItemChange(idx,'price',e.target.value)}
+                  required
+                />
+                <div className="flex items-center justify-end gap-2">
+                  <div className="text-right font-semibold text-slate-900">{formatCurrency(item.quantity*item.price)}</div>
+                  <button
+                    type="button"
+                    className="text-xs text-rose-600 hover:text-rose-700"
+                    onClick={()=>handleRemoveItem(idx)}
+                    disabled={form.items.length===1}
+                    title="Remove"
+                  >
+                    Remove
+                  </button>
                 </div>
               </div>
             ))}
-            <button type="button" onClick={handleAddItem} className="btn-secondary mb-2">+ Add Item</button>
+
+            <div className="pt-3">
+              <button type="button" onClick={handleAddItem} className="btn-secondary">+ Add Item</button>
+            </div>
           </div>
 
           {/* Customer & Total */}
-          <div className="mt-4 border-t border-slate-200 pt-2">
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <div>Customer</div>
-              <select value={form.customer} onChange={e=>setForm(prev=>({...prev, customer:e.target.value}))} className="select-field">
-                <option value="">Cash</option>
-                {customers.map(c=><option key={c._id} value={c._id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <div>Phone</div>
-              <input value={selectedCustomer?.phone||''} readOnly className="input-field" placeholder="—" />
-            </div>
-            <div className="grid grid-cols-2 gap-2 font-semibold text-lg">
-              <div>Total</div>
-              <div className="text-right">{formatCurrency(totals.total)}</div>
+          <div className="mt-4 rounded border border-slate-200 bg-slate-50 p-3 shrink-0">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <div className="text-xs font-semibold text-slate-600">Customer</div>
+                <select value={form.customer} onChange={e=>setForm(prev=>({...prev, customer:e.target.value}))} className="select-field">
+                  <option value="">Cash</option>
+                  {customers.map(c=><option key={c._id} value={c._id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <div className="text-xs font-semibold text-slate-600">Phone</div>
+                <input value={selectedCustomer?.phone||''} readOnly className="input-field" placeholder="—" />
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 items-center mt-2">
-              <div>Payment Mode</div>
-              <select value={paymentMode} onChange={e=>setPaymentMode(e.target.value)} className="select-field">
-                <option value="cash">Cash</option>
-                <option value="card">Card</option>
-                <option value="upi">UPI</option>
-                <option value="credit">Credit</option>
-              </select>
+            <div className="mt-3 flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-900">Total</div>
+              <div className="text-right text-lg font-bold text-slate-900">{formatCurrency(totals.total)}</div>
             </div>
 
-            <div className="flex gap-2 mt-4">
-              <button type="button" onClick={resetForm} className="btn-secondary flex-1">Clear</button>
-              <button type="submit" disabled={saving} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-md">
-                {saving ? 'Generating...' : 'Generate Bill'}
-              </button>
+            <div className="mt-3 grid grid-cols-2 gap-3 items-end">
+              <div className="space-y-1">
+                <div className="text-xs font-semibold text-slate-600">Payment Mode</div>
+                <select value={paymentMode} onChange={e=>setPaymentMode(e.target.value)} className="select-field">
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="upi">UPI</option>
+                  <option value="credit">Credit</option>
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={resetForm} className="btn-secondary flex-1">Clear</button>
+                <button type="submit" disabled={saving} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-md">
+                  {saving ? 'Generating...' : 'Generate Bill'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
