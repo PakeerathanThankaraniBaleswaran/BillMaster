@@ -81,8 +81,15 @@ export const getReports = asyncHandler(async (req, res) => {
   const months = Math.min(24, Math.max(1, Number(req.query.months || 12) || 12))
   const { start: monthAggStart, months: monthLabels } = monthRange(to, months)
 
-  const [cashDailyAgg, invoiceDailyAgg, topBillDailyAgg, topProductDailyAgg, cashMonthlyAgg, invoiceMonthlyAgg] =
-    await Promise.all([
+  const [
+    cashDailyAgg,
+    invoiceDailyAgg,
+    topBillDailyAgg,
+    topProductDailyAgg,
+    cashMonthlyAgg,
+    invoiceMonthlyAgg,
+    paymentModeAgg,
+  ] = await Promise.all([
       CashEntry.aggregate([
         { $match: { user: userId, createdAt: { $gte: from, $lte: to } } },
         {
@@ -197,6 +204,17 @@ export const getReports = asyncHandler(async (req, res) => {
           },
         },
       ]),
+      Invoice.aggregate([
+        { $match: { user: userId, invoiceDate: { $gte: from, $lte: to } } },
+        {
+          $group: {
+            _id: { $ifNull: ['$paymentMode', 'cash'] },
+            amount: { $sum: '$total' },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { amount: -1 } },
+      ]),
     ])
 
   const days = dayRange(from, to)
@@ -273,12 +291,21 @@ export const getReports = asyncHandler(async (req, res) => {
     }
   })
 
+  const paymentModes = Array.isArray(paymentModeAgg)
+    ? paymentModeAgg.map((r) => ({
+        mode: String(r?._id || 'cash'),
+        amount: Number(r?.amount || 0),
+        count: Number(r?.count || 0),
+      }))
+    : []
+
   res.status(200).json({
     success: true,
     data: {
       range: { from, to },
       daily,
       monthly,
+      paymentModes,
     },
   })
 })

@@ -369,6 +369,7 @@ export default function Invoices() {
         invoiceNumber: form.invoiceNumber,
         customer: form.customer || undefined,
         status: form.status,
+        paymentMode,
         taxRate: Number(form.taxRate || 0),
         discountRate: Number(form.discountRate || 0),
         items: payloadItems,

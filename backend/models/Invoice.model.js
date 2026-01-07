@@ -26,6 +26,11 @@ const invoiceSchema = new mongoose.Schema(
       enum: ['draft', 'sent', 'paid', 'overdue'],
       default: 'draft',
     },
+    paymentMode: {
+      type: String,
+      enum: ['cash', 'card', 'upi', 'credit'],
+      default: 'cash',
+    },
     invoiceDate: { type: Date, default: Date.now },
     dueDate: { type: Date, default: null },
     items: { type: [invoiceItemSchema], default: [] },

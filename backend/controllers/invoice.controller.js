@@ -12,6 +12,7 @@ const clampPercent = (n) => {
 }
 
 const allowedUnits = new Set(['number', 'kg', 'g', 'l', 'ml'])
+const allowedPaymentModes = new Set(['cash', 'card', 'upi', 'credit'])
 
 const calculateTotals = async ({ userId, items = [], taxRate = 0, discountRate = 0 }) => {
   if (!Array.isArray(items) || items.length === 0) {
@@ -148,6 +149,7 @@ export const createInvoice = asyncHandler(async (req, res, next) => {
     items = [],
     status = 'draft',
     notes = '',
+    paymentMode = 'cash',
     invoiceDate,
     dueDate,
     taxRate = 0,
@@ -174,6 +176,9 @@ export const createInvoice = asyncHandler(async (req, res, next) => {
     invoiceNumber,
     items: computed.items,
     status,
+    paymentMode: allowedPaymentModes.has(String(paymentMode || '').toLowerCase())
+      ? String(paymentMode).toLowerCase()
+      : 'cash',
     notes,
     currency: computed.currency,
     subtotal: computed.subtotal,
@@ -255,9 +260,16 @@ export const updateInvoice = asyncHandler(async (req, res, next) => {
     await deductInventoryForInvoice({ userId: req.user.id, invoiceItems: invoiceItemsToUse })
   }
 
+  const normalizedPaymentMode =
+    req.body?.paymentMode != null
+      ? allowedPaymentModes.has(String(req.body.paymentMode || '').toLowerCase())
+        ? String(req.body.paymentMode).toLowerCase()
+        : 'cash'
+      : undefined
+
   const updatedInvoice = await Invoice.findOneAndUpdate(
     { _id: id, user: req.user.id },
-    { ...req.body, ...computed },
+    { ...req.body, ...(normalizedPaymentMode ? { paymentMode: normalizedPaymentMode } : {}), ...computed },
     { new: true }
   )
   if (!updatedInvoice) return next(new ErrorResponse('Invoice not found', 404))
