@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { companyAPI, customerAPI, invoiceAPI, productAPI } from '../services/api'
 import { useAuth } from '../hooks/useAuth'
+import { Search, Package, Plus, Trash2, Receipt, User, Phone, CreditCard, CheckCircle, AlertCircle, ShoppingCart } from 'lucide-react'
 
 const newItem = () => ({ product: '', description: '', quantity: 1, unit: 'number', price: 0 })
 const RECEIPT_WIDTH_MM = 80
@@ -126,6 +127,8 @@ export default function Invoices() {
   const [saving, setSaving] = useState(false)
   const [itemLookupQuery, setItemLookupQuery] = useState('')
   const [paymentMode, setPaymentMode] = useState('cash')
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [lastInvoiceNumber, setLastInvoiceNumber] = useState('')
   const [form, setForm] = useState({
     invoiceNumber: '',
     customer: '',
@@ -204,6 +207,9 @@ export default function Invoices() {
       const invoice = body.data?.invoice || body.invoice
       const customerDoc = invoice?.customer ? customers.find(c=>c._id===invoice.customer)||null : null
       openReceiptPrintWindow({ invoice, company, customer:customerDoc, cashierName:user?.name||user?.email||'', paymentMode })
+      setLastInvoiceNumber(invoice?.invoiceNumber || form.invoiceNumber)
+      setShowSuccess(true)
+      setTimeout(() => setShowSuccess(false), 3000)
       resetForm()
       setItemLookupQuery('')
     } catch (error) {
@@ -219,70 +225,109 @@ export default function Invoices() {
   }, [products, itemLookupQuery])
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-slate-50 p-4">
-      <form onSubmit={handleSubmit} className="grid grid-cols-[360px,1fr] gap-4 h-[calc(100vh-6rem)]">
+    <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-slate-50 to-slate-100 p-3">
+      {/* Success Toast */}
+      {showSuccess && (
+        <div className="fixed top-2 right-2 z-50 bg-emerald-600 text-white px-2.5 py-1 rounded shadow-lg flex items-center gap-1 text-xs">
+          <CheckCircle className="h-3 w-3" />
+          <div>
+            <p className="font-semibold">Bill #{lastInvoiceNumber} Created!</p>
+          </div>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="grid grid-cols-[360px,1fr] gap-2 h-[calc(100vh-4rem)]">
         {/* Product Lookup */}
-        <aside className="bg-white p-4 rounded border border-slate-200 flex flex-col">
-          <input className="input-field mb-2" value={itemLookupQuery} onChange={e=>setItemLookupQuery(e.target.value)} placeholder="Search product..." />
-          <div className="flex-1 overflow-y-auto">
-            {loading ? <div className="text-sm text-slate-500 px-2 py-2">Loading...</div> : filteredProducts.length ? filteredProducts.map(p=>{
+        <aside className="bg-white p-3 rounded-md shadow-sm border border-slate-200 flex flex-col">
+          <div className="mb-2">
+            <h2 className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-1.5">
+              <Package className="h-4 w-4 text-indigo-600" />
+              Products
+            </h2>
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <input 
+                className="w-full rounded border border-gray-300 bg-white pl-9 pr-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" 
+                value={itemLookupQuery} 
+                onChange={e=>setItemLookupQuery(e.target.value)} 
+                placeholder="Search..." 
+              />
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto -mx-1 px-1 scrollbar-thin" style={{maxHeight: 'calc(100vh - 180px)'}}>
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mb-2"></div>
+                <p className="text-sm">Loading...</p>
+              </div>
+            ) : filteredProducts.length ? filteredProducts.map(p=>{
               const unitLabel = formatUnitLabel(p.unit)
               return (
                 <button
                   key={p._id}
                   type="button"
                   onClick={()=>addProductToInvoice(p)}
-                  className="w-full text-left px-3 py-3 border-b border-slate-100 hover:bg-slate-50"
-                  title={`${p.name} (${unitLabel})`}
+                  className="w-full text-left px-3 py-2 mb-1 border border-slate-200 rounded-md hover:bg-indigo-50 hover:border-indigo-300 transition-colors group"
+                  title={`Add ${p.name}`}
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
                       <div className="text-sm font-semibold text-slate-900 truncate">{p.name}</div>
-                      <div className="text-xs text-slate-500 truncate">Unit: {unitLabel}</div>
+                      <div className="text-xs text-slate-500 truncate">{unitLabel}</div>
                     </div>
-                    <div className="text-sm font-semibold text-slate-800 whitespace-nowrap">{formatCurrency(p.price)}</div>
+                    <div className="text-sm font-bold text-slate-900">{formatCurrency(p.price)}</div>
                   </div>
                 </button>
               )
-            }):<div className="text-sm text-slate-500 px-2 py-2">No products found</div>}
+            }) : (
+              <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+                <ShoppingCart className="h-10 w-10 mb-2" />
+                <p className="text-sm">No products found</p>
+              </div>
+            )}
           </div>
         </aside>
 
         {/* Invoice Form */}
-        <div className="bg-white p-4 rounded border border-slate-200 flex flex-col min-h-0">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-sm font-semibold text-slate-900">Bill</div>
-            <div className="text-xs text-slate-500">No: {form.invoiceNumber}</div>
+        <div className="bg-white p-3 rounded-md shadow-sm border border-slate-200 flex flex-col min-h-0">
+          <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-200">
+            <div className="flex items-center gap-1.5">
+              <Receipt className="h-4 w-4 text-indigo-600" />
+              <h2 className="text-sm font-semibold text-slate-900">New Bill</h2>
+            </div>
+            <div className="bg-indigo-50 px-2 py-0.5 rounded">
+              <span className="text-xs font-semibold text-indigo-700">#{form.invoiceNumber}</span>
+            </div>
           </div>
 
-          <div className="grid grid-cols-[1.5fr,0.5fr,0.5fr,0.6fr,0.7fr] gap-2 text-xs font-semibold text-slate-500 border-b border-slate-200 pb-2">
-            <div>Item</div>
-            <div className="text-right">Qty</div>
-            <div>Unit</div>
-            <div className="text-right">Price</div>
-            <div className="text-right">Amount</div>
+          <div className="grid grid-cols-[1.5fr,0.4fr,0.4fr,0.5fr,0.6fr] gap-1.5 text-xs font-semibold text-slate-600 bg-slate-50 px-2 py-1 rounded mb-1.5">
+            <div>ITEM</div>
+            <div className="text-right">QTY</div>
+            <div>UNIT</div>
+            <div className="text-right">PRICE</div>
+            <div className="text-right">AMT</div>
           </div>
 
-          <div className="mt-2 flex-1 min-h-0 overflow-y-auto pr-1">
+          <div className="mt-1 flex-1 min-h-0 overflow-y-auto pr-1 space-y-1 scrollbar-thin" style={{maxHeight: 'calc(100vh - 320px)'}}>
             {form.items.map((item,idx)=>(
-              <div key={idx} className="grid grid-cols-[1.5fr,0.5fr,0.5fr,0.6fr,0.7fr] gap-2 items-end py-2 border-b border-slate-100">
+              <div key={idx} className="grid grid-cols-[1.5fr,0.4fr,0.4fr,0.5fr,0.6fr] gap-1.5 items-center py-1.5 px-2 border border-slate-200 rounded hover:bg-slate-50">
                 <input
-                  className="input-field"
+                  className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   value={item.description}
                   onChange={e=>handleItemChange(idx,'description',e.target.value)}
-                  placeholder="Item name"
+                  placeholder="Item"
                   required
                 />
                 <input
                   type="number"
                   min="0"
-                  className="input-field text-right"
+                  className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm text-right focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   value={item.quantity}
                   onChange={e=>handleItemChange(idx,'quantity',e.target.value)}
                   required
                 />
                 <select
-                  className="select-field"
+                  className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   value={item.unit||'number'}
                   onChange={e=>handleItemChange(idx,'unit',e.target.value)}
                   disabled={Boolean(item.product)}
@@ -296,66 +341,102 @@ export default function Invoices() {
                 <input
                   type="number"
                   min="0"
-                  className="input-field text-right"
+                  className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm text-right focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   value={item.price}
                   onChange={e=>handleItemChange(idx,'price',e.target.value)}
                   required
                 />
-                <div className="flex items-center justify-end gap-2">
-                  <div className="text-right font-semibold text-slate-900">{formatCurrency(item.quantity*item.price)}</div>
+                <div className="flex items-center justify-end gap-0.5">
+                  <div className="text-right font-bold text-slate-900 text-sm flex-1">{formatCurrency(item.quantity*item.price)}</div>
                   <button
                     type="button"
-                    className="text-xs text-rose-600 hover:text-rose-700"
+                    className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                     onClick={()=>handleRemoveItem(idx)}
                     disabled={form.items.length===1}
                     title="Remove"
                   >
-                    Remove
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               </div>
             ))}
 
-            <div className="pt-3">
-              <button type="button" onClick={handleAddItem} className="btn-secondary">+ Add Item</button>
+            <div className="pt-2">
+              <button 
+                type="button" 
+                onClick={handleAddItem} 
+                className="w-full bg-gray-100 text-gray-900 hover:bg-gray-200 border border-gray-200 rounded px-3 py-1.5 text-sm font-semibold flex items-center justify-center gap-1.5"
+              >
+                <Plus className="h-4 w-4" />
+                Add Item
+              </button>
             </div>
           </div>
 
           {/* Customer & Total */}
-          <div className="mt-4 rounded border border-slate-200 bg-slate-50 p-3 shrink-0">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <div className="text-xs font-semibold text-slate-600">Customer</div>
-                <select value={form.customer} onChange={e=>setForm(prev=>({...prev, customer:e.target.value}))} className="select-field">
-                  <option value="">Cash</option>
+          <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3 shrink-0">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 flex items-center gap-0.5 mb-1">
+                  <User className="h-3 w-3" />
+                  Customer
+                </label>
+                <select value={form.customer} onChange={e=>setForm(prev=>({...prev, customer:e.target.value}))} className="w-full rounded border border-gray-300 px-2.5 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                  <option value="">Walk-in</option>
                   {customers.map(c=><option key={c._id} value={c._id}>{c.name}</option>)}
                 </select>
               </div>
-              <div className="space-y-1">
-                <div className="text-xs font-semibold text-slate-600">Phone</div>
-                <input value={selectedCustomer?.phone||''} readOnly className="input-field" placeholder="—" />
+              <div>
+                <label className="text-xs font-semibold text-slate-700 flex items-center gap-0.5 mb-1">
+                  <Phone className="h-3 w-3" />
+                  Phone
+                </label>
+                <input value={selectedCustomer?.phone||''} readOnly className="w-full rounded border border-gray-300 bg-slate-100 px-2.5 py-1.5 text-sm" placeholder="—" />
               </div>
             </div>
 
-            <div className="mt-3 flex items-center justify-between">
-              <div className="text-sm font-semibold text-slate-900">Total</div>
-              <div className="text-right text-lg font-bold text-slate-900">{formatCurrency(totals.total)}</div>
+            <div className="mt-3 pt-2 border-t border-slate-300 flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-700">Total</div>
+              <div className="text-right text-xl font-bold text-indigo-700">{formatCurrency(totals.total)}</div>
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-3 items-end">
-              <div className="space-y-1">
-                <div className="text-xs font-semibold text-slate-600">Payment Mode</div>
-                <select value={paymentMode} onChange={e=>setPaymentMode(e.target.value)} className="select-field">
-                  <option value="cash">Cash</option>
-                  <option value="card">Card</option>
-                  <option value="upi">UPI</option>
-                  <option value="credit">Credit</option>
+            <div className="mt-2.5 grid grid-cols-2 gap-2 items-end">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 flex items-center gap-0.5 mb-1">
+                  <CreditCard className="h-3 w-3" />
+                  Payment
+                </label>
+                <select value={paymentMode} onChange={e=>setPaymentMode(e.target.value)} className="w-full rounded border border-gray-300 px-2.5 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                  <option value="cash">💵 Cash</option>
+                  <option value="card">💳 Card</option>
+                  <option value="upi">📱 UPI</option>
+                  <option value="credit">📝 Credit</option>
                 </select>
               </div>
               <div className="flex gap-2">
-                <button type="button" onClick={resetForm} className="btn-secondary flex-1">Clear</button>
-                <button type="submit" disabled={saving} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-md">
-                  {saving ? 'Generating...' : 'Generate Bill'}
+                <button 
+                  type="button" 
+                  onClick={resetForm} 
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded px-3 py-1.5 text-sm font-semibold"
+                >
+                  Clear
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={saving} 
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded px-3 py-1.5 text-sm disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {saving ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Processing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Receipt className="h-4 w-4" />
+                      Generate
+                    </>
+                  )}
                 </button>
               </div>
             </div>

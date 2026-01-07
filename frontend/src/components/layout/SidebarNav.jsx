@@ -14,7 +14,7 @@ const navItems = [
 const linkBase =
   'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors'
 
-export default function SidebarNav({ variant = 'sidebar' }) {
+export default function SidebarNav({ variant = 'sidebar', onNavigate }) {
   const isSidebar = variant === 'sidebar'
 
   return (
@@ -25,6 +25,9 @@ export default function SidebarNav({ variant = 'sidebar' }) {
           <NavLink
             key={item.to}
             to={item.to}
+            onClick={() => {
+              if (typeof onNavigate === 'function') onNavigate()
+            }}
             className={({ isActive }) =>
               isSidebar
                 ? `${linkBase} ${
