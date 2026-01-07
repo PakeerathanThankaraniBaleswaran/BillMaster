@@ -117,35 +117,37 @@ export default function CashIn() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto px-4 pb-10">
-        <header className="flex items-start justify-between gap-4 mb-8">
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-primary-50 flex items-center justify-center text-primary-700 shadow-sm border border-primary-100">
-              <Wallet className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="page-title">Cash In</h1>
-              <p className="page-subtitle">Daily cash collection entry</p>
-            </div>
+    <div className="space-y-6 max-w-5xl mx-auto rounded-2xl bg-primary-50 p-6">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl bg-white flex items-center justify-center text-primary-700 shadow-sm border border-slate-200">
+            <Wallet className="h-5 w-5" />
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <Calendar className="h-4 w-4 text-primary-700" />
-            <span>{todayString}</span>
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Cash In</h1>
+            <p className="text-sm text-slate-500">Daily cash collection entry</p>
           </div>
-        </header>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-primary-700 bg-primary-50 border border-primary-100 rounded-full px-3 py-1.5 shadow-sm w-fit">
+          <Calendar className="h-4 w-4 text-primary-600" />
+          <span>{todayString}</span>
+        </div>
+      </header>
 
-          <div className="grid md:grid-cols-3 gap-4 mb-6">
-            <div className="rounded-2xl border border-primary-100 bg-gradient-to-br from-primary-600 via-primary-600 to-primary-700 text-white p-5 shadow-lg shadow-primary-200/60 transition-transform hover:-translate-y-0.5">
-              <p className="text-sm text-primary-50">Total cash today</p>
-              <p className="text-3xl font-semibold mt-2">{formatCurrency(summary.totalCashToday)}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white/90 backdrop-blur-sm p-5 shadow-md hover:shadow-lg transition-shadow">
-              <p className="text-sm text-slate-500">Total entries</p>
-              <p className="text-3xl font-semibold text-slate-800 mt-2">{summary.entryCount}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white/90 backdrop-blur-sm p-5 shadow-md hover:shadow-lg transition-shadow">
-              <p className="text-sm text-slate-500">Last entry</p>
-              <p className="text-lg font-semibold mt-2 text-slate-800">
+      <div className="grid md:grid-cols-3 gap-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm text-slate-500">Total cash today</p>
+          <p className="text-3xl font-semibold text-slate-900 mt-2">{formatCurrency(summary.totalCashToday)}</p>
+          <div className="mt-3 h-1.5 w-20 rounded-full bg-primary-100" />
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm text-slate-500">Total entries</p>
+          <p className="text-3xl font-semibold text-slate-900 mt-2">{summary.entryCount}</p>
+          <div className="mt-3 h-1.5 w-14 rounded-full bg-slate-100" />
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm text-slate-500">Last entry</p>
+          <p className="text-lg font-semibold mt-2 text-slate-900">
                 {summary.lastEntryAmount > 0 ? formatCurrency(summary.lastEntryAmount) : 'No entries yet'}
               </p>
               {summary.lastEntryTime && (
@@ -153,98 +155,108 @@ export default function CashIn() {
                   {new Date(summary.lastEntryTime).toLocaleString()}
                 </p>
               )}
-            </div>
-          </div>
+        </div>
+      </div>
 
-        <div className="bg-white/90 backdrop-blur-md rounded-3xl shadow-xl border border-slate-100 overflow-hidden max-w-4xl mx-auto">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50">
-            <div>
-              <p className="text-lg font-semibold text-slate-800">New Entry</p>
-              <p className="text-sm text-slate-500">Enter cash denominations</p>
-            </div>
-            <div className="text-sm px-4 py-2 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100 shadow-sm">
-              {formatCurrency(totals.grandTotal)}
-            </div>
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden max-w-4xl mx-auto">
+        <div className="flex items-start sm:items-center justify-between px-5 py-4 border-b border-slate-200 bg-white">
+          <div>
+            <p className="text-lg font-semibold text-slate-900">New Entry</p>
+            <p className="text-sm text-slate-500">Enter cash denominations</p>
           </div>
+          <div className="text-sm px-3 py-2 rounded-xl bg-primary-50 text-primary-700 font-semibold border border-primary-100">
+            {formatCurrency(totals.grandTotal)}
+          </div>
+        </div>
 
-          <form onSubmit={handleSubmit} className="p-5 space-y-5">
-            <div className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                {totals.perRow.map((row) => (
-                  <div
-                    key={row.value}
-                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm hover:border-primary-200 hover:bg-white transition-all"
-                  >
-                    <div className="flex items-center gap-2 min-w-[96px]">
-                      <p className="text-base font-semibold text-slate-800">{row.label}</p>
-                      <span className="text-slate-500">×</span>
+        <form onSubmit={handleSubmit} className="p-5 space-y-5">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {totals.perRow.map((row) => {
+              const hasValue = row.subtotal > 0
+              return (
+                <div
+                  key={row.value}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className="h-9 min-w-[76px] px-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center">
+                        <p className="text-base font-semibold text-slate-900">{row.label}</p>
+                      </div>
+                      <span className="text-slate-400">×</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                        hasValue
+                          ? 'bg-primary-50 text-primary-700 border-primary-100'
+                          : 'bg-slate-50 text-slate-500 border-slate-200'
+                      }`}
+                    >
+                      {hasValue
+                        ? formatCurrency(row.subtotal, { minimumFractionDigits: 0 })
+                        : 'Subtotal —'}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
                       <button
                         type="button"
                         onClick={() => handleAdjustCount(row.value, -1)}
-                        className="h-9 w-9 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                          className="h-9 w-9 text-slate-600 hover:bg-primary-50"
                       >
                         -
                       </button>
                       <input
                         type="number"
                         min="0"
-                        className="w-16 md:w-20 px-2.5 py-1.5 text-right text-slate-800 bg-white border border-slate-200 rounded-lg focus:border-primary-300 focus:ring-2 focus:ring-primary-100"
+                        className="h-9 w-16 md:w-20 px-2 text-right text-slate-900 bg-transparent outline-none"
                         value={row.count}
                         onChange={(e) => handleCountChange(row.value, e.target.value)}
                       />
                       <button
                         type="button"
                         onClick={() => handleAdjustCount(row.value, 1)}
-                        className="h-9 w-9 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                          className="h-9 w-9 text-slate-600 hover:bg-primary-50"
                       >
                         +
                       </button>
                     </div>
-                    <div className="ml-auto text-right text-slate-900 font-semibold min-w-[96px]">
-                      {row.subtotal === 0 ? '—' : formatCurrency(row.subtotal, { minimumFractionDigits: 0 })}
-                    </div>
+                    <div className="text-xs text-slate-500">Count</div>
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+              )
+            })}
+          </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Remarks (Optional)</label>
-              <textarea
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm shadow-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
-                rows="3"
-                placeholder="Add notes about this collection..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Remarks (Optional)</label>
+            <textarea
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm shadow-sm focus:border-primary-300 focus:ring-2 focus:ring-primary-100"
+              rows="3"
+              placeholder="Add notes about this collection..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
 
-            <div className="flex flex-col md:flex-row gap-3 md:items-center">
-              <button
-                type="button"
-                onClick={handleClear}
-                className="btn-secondary w-full md:w-auto"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Reset
-              </button>
-              <button
-                type="submit"
-                className="btn-primary w-full md:w-auto px-6 py-3"
-              >
-                <Save className="h-4 w-4" />
-                Save entry
-              </button>
-            </div>
-          </form>
-        </div>
+          <div className="flex flex-col md:flex-row gap-3 md:items-center">
+            <button type="button" onClick={handleClear} className="btn-secondary w-full md:w-auto">
+              <RotateCcw className="h-4 w-4" />
+              Reset
+            </button>
+            <button type="submit" className="btn-primary w-full md:w-auto px-6 py-3">
+              <Save className="h-4 w-4" />
+              Save entry
+            </button>
+          </div>
+        </form>
+      </div>
 
-        <div className="mt-6 bg-white/80 backdrop-blur-sm rounded-3xl shadow-md border border-slate-100 p-6">
-          <p className="text-lg font-semibold text-slate-800 mb-2">{"Today's Entries"}</p>
-          <p className="text-sm text-slate-500">No entries recorded today.</p>
-        </div>
+      <div className="mt-6 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 max-w-4xl mx-auto">
+        <p className="text-lg font-semibold text-slate-900 mb-2">{"Today's Entries"}</p>
+        <p className="text-sm text-slate-500">No entries recorded today.</p>
+      </div>
     </div>
   )
 }

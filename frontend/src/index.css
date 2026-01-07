@@ -107,4 +107,5 @@
 
   .scrollbar-track-slate-100::-webkit-scrollbar-track {
     @apply bg-slate-100;
-  }}
+  }
+}

@@ -8,6 +8,7 @@ import AuthCallback from './pages/AuthCallback'
 import CompanySetup from './pages/CompanySetup'
 import DataEntry from './pages/DataEntry'
 import Invoices from './pages/Invoices'
+import InvoiceHistory from './pages/InvoiceHistory'
 import Customers from './pages/Customers'
 import Products from './pages/Products'
 import Reports from './pages/Reports'
@@ -30,6 +31,7 @@ function App() {
             <Route path="/cash-in" element={<CashIn />} />
             <Route path="/data-entry" element={<DataEntry />} />
             <Route path="/invoices" element={<Invoices />} />
+            <Route path="/invoice-history" element={<InvoiceHistory />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/products" element={<Products />} />
             <Route path="/reports" element={<Reports />} />

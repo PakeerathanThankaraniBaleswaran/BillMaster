@@ -165,7 +165,7 @@ export default function Customers() {
   }, [customers, query])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 rounded-2xl bg-primary-50 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Customers</h1>

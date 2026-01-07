@@ -68,7 +68,7 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 rounded-2xl bg-primary-50 p-6">
         <div className="animate-pulse space-y-4">
           <div className="h-20 bg-gray-100 rounded-lg"></div>
           <div className="grid md:grid-cols-3 gap-4">
@@ -99,7 +99,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 rounded-2xl bg-primary-50 p-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <h1 className="page-title">Welcome back{user ? `, ${user.name}` : ''}! 👋</h1>
@@ -140,39 +140,39 @@ export default function Dashboard() {
         <StatCard
           label="Total Revenue"
           value={formatCurrency(summary.invoices.paidTotal)}
-          accent="bg-gradient-to-br from-emerald-500 to-emerald-600"
+          accent="bg-gradient-to-br from-primary-500 to-primary-600"
           icon={<TrendingUp className="h-5 w-5" />}
           loading={summaryLoading}
         />
         <StatCard
           label="Outstanding Amount"
           value={formatCurrency(summary.invoices.outstandingTotal)}
-          accent="bg-gradient-to-br from-amber-500 to-orange-500"
+          accent="bg-gradient-to-br from-primary-600 to-primary-700"
           icon={<AlertCircle className="h-5 w-5" />}
           loading={summaryLoading}
         />
         <StatCard
           label="Total Invoices"
           value={summary.invoices.total}
-          accent="bg-gradient-to-br from-indigo-500 to-indigo-600"
+          accent="bg-gradient-to-br from-primary-700 to-primary-800"
           icon={<FileText className="h-5 w-5" />}
           loading={summaryLoading}
         />
       </div>
 
       <div className="grid md:grid-cols-4 gap-3">
-        <Pill label="Draft" value={summary.invoices.draft} color="bg-slate-100 text-slate-800" loading={summaryLoading} />
-        <Pill label="Sent" value={summary.invoices.sent} color="bg-blue-100 text-blue-800" loading={summaryLoading} />
-        <Pill label="Paid" value={summary.invoices.paid} color="bg-emerald-100 text-emerald-800" loading={summaryLoading} />
-        <Pill label="Overdue" value={summary.invoices.overdue} color="bg-rose-100 text-rose-800" loading={summaryLoading} />
+        <Pill label="Draft" value={summary.invoices.draft} color="bg-primary-50 text-primary-800" loading={summaryLoading} />
+        <Pill label="Sent" value={summary.invoices.sent} color="bg-primary-100 text-primary-900" loading={summaryLoading} />
+        <Pill label="Paid" value={summary.invoices.paid} color="bg-primary-200 text-primary-900" loading={summaryLoading} />
+        <Pill label="Overdue" value={summary.invoices.overdue} color="bg-primary-300 text-primary-900" loading={summaryLoading} />
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
         <CountCard 
           label="Total Customers" 
           value={summary.counts.customers} 
-          color="text-emerald-600" 
-          bgColor="bg-emerald-50"
+          color="text-primary-700" 
+          bgColor="bg-primary-50"
           icon={<Users className="h-6 w-6" />}
           loading={summaryLoading} 
           onClick={() => navigate('/customers')}
@@ -180,8 +180,8 @@ export default function Dashboard() {
         <CountCard 
           label="Total Products" 
           value={summary.counts.products} 
-          color="text-indigo-600" 
-          bgColor="bg-indigo-50"
+          color="text-primary-700" 
+          bgColor="bg-primary-50"
           icon={<Package className="h-6 w-6" />}
           loading={summaryLoading} 
           onClick={() => navigate('/products')}
@@ -324,13 +324,13 @@ function CountCard({ label, value, color, bgColor, icon, loading, onClick }) {
 const statusBadge = (status) => {
   switch (status) {
     case 'paid':
-      return 'bg-emerald-100 text-emerald-800'
+      return 'bg-primary-100 text-primary-900'
     case 'sent':
-      return 'bg-blue-100 text-blue-800'
+      return 'bg-primary-50 text-primary-800'
     case 'overdue':
-      return 'bg-rose-100 text-rose-800'
+      return 'bg-primary-200 text-primary-900'
     default:
-      return 'bg-slate-100 text-slate-800'
+      return 'bg-primary-50 text-primary-800'
   }
 }
 

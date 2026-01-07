@@ -27,6 +27,7 @@ export default function DataEntry() {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState('')
   const [query, setQuery] = useState('')
   const [editingId, setEditingId] = useState(null)
   const [lowStockItems, setLowStockItems] = useState([])
@@ -59,6 +60,7 @@ export default function DataEntry() {
   const reset = () => {
     setForm(emptyForm)
     setEditingId(null)
+    setFormError('')
   }
 
   useEffect(() => {
@@ -80,14 +82,15 @@ export default function DataEntry() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setFormError('')
     if (!form.company || !form.product) {
-      alert('Please fill company and product name')
+      setFormError('Please fill company and product name')
       return
     }
     const quantityNumber = Number(form.purchaseQuantityValue)
 
     if (!Number.isFinite(quantityNumber) || quantityNumber <= 0) {
-      alert('Quantity must be greater than zero (e.g., 25 kg, 10 bags)')
+      setFormError('Quantity must be greater than zero (e.g., 25 kg, 10 bags)')
       return
     }
 
@@ -152,7 +155,7 @@ export default function DataEntry() {
       }
     } catch (error) {
       console.error('Failed to save item', error)
-      alert(error.response?.data?.message || 'Failed to save item')
+      setFormError(error.response?.data?.message || 'Failed to save item')
     } finally {
       setSaving(false)
     }
@@ -211,7 +214,7 @@ export default function DataEntry() {
         align: 'right',
         sortValue: (r) => Number(r?.profit ?? 0),
         render: (r) => (
-          <span className="font-semibold text-emerald-700">{formatCurrency(Number(r?.profit || 0))}</span>
+          <span className="font-semibold text-primary-700">{formatCurrency(Number(r?.profit || 0))}</span>
         ),
       },
       {
@@ -221,7 +224,7 @@ export default function DataEntry() {
         align: 'right',
         sortValue: (r) => Number(r?.profitPct ?? 0),
         render: (r) => (
-          <span className="font-semibold text-emerald-700">{Number(r?.profitPct || 0).toFixed(1)}%</span>
+          <span className="font-semibold text-primary-700">{Number(r?.profitPct || 0).toFixed(1)}%</span>
         ),
       },
       {
@@ -290,7 +293,7 @@ export default function DataEntry() {
   )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 rounded-2xl bg-primary-50 p-6">
       {lowStockItems.length ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <div className="font-semibold">Low stock alert</div>
@@ -327,6 +330,12 @@ export default function DataEntry() {
               <h2 className="text-lg font-semibold text-gray-900">{editingId ? 'Edit item' : 'Add item'}</h2>
             </div>
 
+            {formError ? (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {formError}
+              </div>
+            ) : null}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-sm font-medium text-slate-700">Company Name</label>
@@ -335,6 +344,8 @@ export default function DataEntry() {
                   placeholder="Enter company name"
                   value={form.company}
                   onChange={(e) => handleChange('company', e.target.value)}
+                  disabled={saving}
+                  required
                 />
               </div>
 
@@ -345,6 +356,8 @@ export default function DataEntry() {
                   placeholder="Enter product name"
                   value={form.product}
                   onChange={(e) => handleChange('product', e.target.value)}
+                  disabled={saving}
+                  required
                 />
               </div>
 
@@ -355,6 +368,7 @@ export default function DataEntry() {
                   placeholder="e.g., 500ml, Red, Large"
                   value={form.variant}
                   onChange={(e) => handleChange('variant', e.target.value)}
+                  disabled={saving}
                 />
               </div>
 
@@ -365,15 +379,19 @@ export default function DataEntry() {
                     <input
                       type="number"
                       min="0"
+                      step="0.01"
                       className="input-field"
                       placeholder="Enter the quantity of stock purchased"
                       value={form.purchaseQuantityValue}
                       onChange={(e) => handleChange('purchaseQuantityValue', e.target.value)}
+                      disabled={saving}
+                      required
                     />
                     <select
                       className="select-field min-w-[90px]"
                       value={form.purchaseUnit}
                       onChange={(e) => handleChange('purchaseUnit', e.target.value)}
+                      disabled={saving}
                     >
                       <option value="number">number</option>
                       <option value="kg">kg</option>
@@ -388,10 +406,12 @@ export default function DataEntry() {
                     <input
                       type="number"
                       min="0"
+                      step="1"
                       className="input-field"
                       value={form.minQuantity}
                       onChange={(e) => handleChange('minQuantity', e.target.value)}
                       placeholder="0"
+                      disabled={saving}
                     />
                   </div>
                 <div className="space-y-1">
@@ -399,9 +419,12 @@ export default function DataEntry() {
                   <input
                     type="number"
                     min="0"
+                    step="0.01"
                     className="input-field"
                     value={form.purchasePrice}
                     onChange={(e) => handleChange('purchasePrice', e.target.value)}
+                    disabled={saving}
+                    required
                   />
                 </div>
               </div>
@@ -412,14 +435,17 @@ export default function DataEntry() {
                   <input
                     type="number"
                     min="0"
+                    step="0.01"
                     className="input-field"
                     value={form.sellingPrice}
                     onChange={(e) => handleChange('sellingPrice', e.target.value)}
+                    disabled={saving}
+                    required
                   />
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-slate-700">Profit (auto)</label>
-                  <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 shadow-inner text-sm font-semibold text-emerald-700">
+                  <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 shadow-inner text-sm font-semibold text-primary-700">
                     <span>{formatCurrency(profit)}</span>
                     <span>{profitPct.toFixed(1)}%</span>
                   </div>
@@ -431,6 +457,7 @@ export default function DataEntry() {
                   type="button"
                   onClick={reset}
                   className="btn-secondary"
+                  disabled={saving}
                 >
                   <RotateCcw className="h-4 w-4" />
                   Reset

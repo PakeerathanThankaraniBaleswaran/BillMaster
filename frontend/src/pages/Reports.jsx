@@ -46,7 +46,11 @@ function MiniBarChart({ title, rows, valueKey, labelKey }) {
           const h = Math.max(2, Math.round((v / max) * 100))
           const label = String(r?.[labelKey] || '')
           return (
-            <div key={label} className="flex-1 min-w-[6px]" title={`${label}: ${formatMoney(v)}`}>
+            <div
+              key={label}
+              className="flex-1 min-w-[6px] h-full flex items-end"
+              title={`${label}: ${formatMoney(v)}`}
+            >
               <div className="w-full bg-primary-600 rounded-sm" style={{ height: `${h}%` }} />
             </div>
           )
@@ -72,10 +76,18 @@ function MiniDoubleBarChart({ title, rows, valueKeyA, valueKeyB, labelKey, label
           const hb = Math.max(2, Math.round((b / max) * 100))
           const label = String(r?.[labelKey] || '')
           return (
-            <div key={label} className="flex-1 min-w-[10px]" title={`${label}: ${labelA} ${formatMoney(a)}, ${labelB} ${formatMoney(b)}`}>
-              <div className="flex items-end gap-1">
-                <div className="w-1/2 bg-primary-600 rounded-sm" style={{ height: `${ha}%` }} />
-                <div className="w-1/2 bg-gray-300 rounded-sm" style={{ height: `${hb}%` }} />
+            <div
+              key={label}
+              className="flex-1 min-w-[10px] h-full flex items-end"
+              title={`${label}: ${labelA} ${formatMoney(a)}, ${labelB} ${formatMoney(b)}`}
+            >
+              <div className="flex items-end gap-1 h-full w-full">
+                <div className="w-1/2 h-full flex items-end">
+                  <div className="w-full bg-primary-600 rounded-sm" style={{ height: `${ha}%` }} />
+                </div>
+                <div className="w-1/2 h-full flex items-end">
+                  <div className="w-full bg-gray-300 rounded-sm" style={{ height: `${hb}%` }} />
+                </div>
               </div>
             </div>
           )
@@ -113,28 +125,59 @@ function PieChartCard({ title, rows }) {
     'text-gray-500',
   ]
 
-  const normalized = Array.isArray(rows)
+  const modeOrder = ['cash', 'credit', 'card']
+
+  const raw = Array.isArray(rows)
     ? rows
         .map((r) => ({
-          label: String(r?.mode || ''),
-          value: Number(r?.amount || 0),
+          label: String(r?.mode ?? r?._id ?? r?.paymentMode ?? '').trim().toLowerCase(),
+          value: Number(r?.amount ?? r?.total ?? 0),
         }))
-        .filter((r) => r.label && Number.isFinite(r.value) && r.value > 0)
+        .filter((r) => r.label && Number.isFinite(r.value) && r.value >= 0)
     : []
 
-  const total = normalized.reduce((s, r) => s + r.value, 0)
+  const valueByMode = new Map()
+  for (const r of raw) {
+    valueByMode.set(r.label, (valueByMode.get(r.label) || 0) + r.value)
+  }
+
+  const normalized = [
+    ...modeOrder.map((m) => ({ label: m, value: valueByMode.get(m) || 0 })),
+    ...Array.from(valueByMode.entries())
+      .filter(([m]) => !modeOrder.includes(m))
+      .map(([label, value]) => ({ label, value })),
+  ]
+
+  const total = normalized.reduce((s, r) => s + Number(r.value || 0), 0)
   let start = 0
 
   return (
     <div className="card">
       <div className="text-sm font-semibold text-gray-900">{title}</div>
       {total <= 0 ? (
-        <div className="mt-3 text-sm text-gray-600">No data.</div>
+        <div className="mt-3 space-y-2 text-sm">
+          {normalized.map((seg, idx) => {
+            const cls = palette[idx % palette.length]
+            return (
+              <div key={seg.label} className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`h-2.5 w-2.5 rounded-sm ${cls.replace('text-', 'bg-')}`} />
+                  <span className="truncate text-gray-700">{seg.label.toUpperCase()}</span>
+                </div>
+                <div className="text-gray-900 font-semibold tabular-nums">
+                  {formatMoney(seg.value)} <span className="text-gray-500 font-normal">(0%)</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       ) : (
         <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
           <div className="flex items-center justify-center">
             <svg viewBox="0 0 120 120" className="h-32 w-32" aria-label={title}>
-              {normalized.map((seg, idx) => {
+              {normalized
+                .filter((seg) => Number(seg.value || 0) > 0)
+                .map((seg, idx) => {
                 const pct = seg.value / total
                 const sweep = pct * 360
                 const end = start + sweep
@@ -319,7 +362,7 @@ export default function Reports() {
   )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 rounded-2xl bg-primary-50 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
