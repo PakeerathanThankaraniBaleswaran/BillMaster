@@ -2,6 +2,12 @@
 
 ## 📦 Step 1: Install Dependencies
 
+### Recommended (From Project Root)
+```bash
+cd BillMaster
+npm run install:all
+```
+
 ### Backend
 ```bash
 cd backend
@@ -96,6 +102,17 @@ mongosh
   ```
 
 ## 🚀 Step 4: Run the Application
+
+### Recommended (Single Command)
+
+From the project root:
+
+```bash
+cd BillMaster
+npm run dev
+```
+
+This starts backend + frontend together.
 
 ### Terminal 1 - Start Backend
 ```bash

@@ -78,6 +78,19 @@ VITE_API_URL=http://localhost:5000/api
 
 ## 🏃 Running the Application
 
+### Run Frontend + Backend Together (Recommended)
+
+From the project root:
+
+```bash
+npm run install:all
+npm run dev
+```
+
+This will start:
+- Backend API on `http://localhost:5000`
+- Frontend on `http://localhost:3000`
+
 ### Start Backend Server
 
 ```bash
