@@ -16,6 +16,7 @@ const isDev = (process.env.NODE_ENV || 'development') !== 'production'
 const allowedOrigins = Array.from(new Set([...configuredOrigins]))
 
 const vercelBillMasterOriginRegex = /^https:\/\/bill-master(?:-[a-z0-9-]+)?\.vercel\.app$/i
+const netlifyAppOriginRegex = /^https:\/\/[a-z0-9-]+\.netlify\.app$/i
 
 app.use(
   cors({
@@ -30,6 +31,11 @@ app.use(
 
       // Allow Vercel production/preview URLs for this project
       if (vercelBillMasterOriginRegex.test(origin)) {
+        return callback(null, true)
+      }
+
+      // Allow Netlify site URLs (common for static frontend hosting)
+      if (netlifyAppOriginRegex.test(origin)) {
         return callback(null, true)
       }
 

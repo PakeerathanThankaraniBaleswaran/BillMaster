@@ -173,6 +173,31 @@ curl -X POST http://localhost:5000/api/auth/login \
 - Check CORS_ORIGIN in `backend/.env` matches frontend URL
 - Verify VITE_API_URL in `frontend/.env`
 
+## 🌐 Deploy (Netlify Frontend)
+
+Netlify hosts the **frontend only** (static files). Your Express API in `backend/` must be deployed separately (Render/Railway/VPS/etc).
+
+### Netlify build settings
+- **Base directory**: `frontend`
+- **Build command**: `npm run build`
+- **Publish directory**: `dist`
+
+### Required environment variables
+
+On **Netlify** (Site settings → Environment variables):
+```env
+VITE_API_URL=https://<YOUR-BACKEND-HOST>/api
+```
+
+On your **backend host** (Render/Railway/etc):
+```env
+CORS_ORIGIN=https://<YOUR-NETLIFY-SITE>.netlify.app
+```
+
+### Quick health check
+- Backend should respond: `GET https://<YOUR-BACKEND-HOST>/api/health`
+- Frontend signup/login should stop showing 404
+
 ## 📚 Next Steps
 
 1. ✅ Your MERN stack is ready!
