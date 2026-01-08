@@ -2,8 +2,6 @@ import jwt from 'jsonwebtoken'
 import User from '../models/User.model.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { ErrorResponse } from '../utils/errorResponse.js'
-import { isFirebase } from '../services/datastore.js'
-import { collection, docToApi } from '../services/firestore.js'
 
 // Protect routes - verify JWT token
 export const protect = asyncHandler(async (req, res, next) => {
@@ -23,28 +21,14 @@ export const protect = asyncHandler(async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret')
 
     // Get user from token
-    if (isFirebase()) {
-      const snap = await collection('users').doc(String(decoded.id)).get()
-      if (!snap.exists) {
-        return next(new ErrorResponse('User not found with this token', 401))
-      }
-      const user = docToApi(snap)
-      if (!user.isActive) {
-        return next(new ErrorResponse('User account is deactivated', 401))
-      }
+    req.user = await User.findById(decoded.id)
 
-      // Mirror Mongoose shape enough for controllers.
-      req.user = { ...user, id: user._id }
-    } else {
-      req.user = await User.findById(decoded.id)
+    if (!req.user) {
+      return next(new ErrorResponse('User not found with this token', 401))
+    }
 
-      if (!req.user) {
-        return next(new ErrorResponse('User not found with this token', 401))
-      }
-
-      if (!req.user.isActive) {
-        return next(new ErrorResponse('User account is deactivated', 401))
-      }
+    if (!req.user.isActive) {
+      return next(new ErrorResponse('User account is deactivated', 401))
     }
 
     next()

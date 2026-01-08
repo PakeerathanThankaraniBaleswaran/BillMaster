@@ -1,8 +1,6 @@
 import CashEntry from '../models/CashEntry.model.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { ErrorResponse } from '../utils/errorResponse.js'
-import { isFirebase } from '../services/datastore.js'
-import { collection, docToApi, nowTimestamp } from '../services/firestore.js'
 
 const allowedDenoms = [5000, 2000, 1000, 500, 100, 50, 20, 10]
 
@@ -30,24 +28,6 @@ export const createCashEntry = asyncHandler(async (req, res, next) => {
 
   if (totalAmount <= 0) {
     return next(new ErrorResponse('Total amount must be greater than zero', 400))
-  }
-
-  if (isFirebase()) {
-    const ref = await collection('cashEntries').add({
-      user: String(req.user.id),
-      type: safeType,
-      denominations,
-      totalAmount,
-      notes: String(notes || ''),
-      createdAt: nowTimestamp(),
-      updatedAt: nowTimestamp(),
-    })
-    const snap = await ref.get()
-    const entry = docToApi(snap)
-    return res.status(201).json({
-      success: true,
-      data: { entry },
-    })
   }
 
   const entry = await CashEntry.create({
@@ -82,25 +62,6 @@ export const getCashSummary = asyncHandler(async (req, res) => {
   start.setHours(0, 0, 0, 0)
   const end = new Date()
   end.setHours(23, 59, 59, 999)
-
-  if (isFirebase()) {
-    const snap = await collection('cashEntries')
-      .where('user', '==', String(req.user.id))
-      .where('createdAt', '>=', start)
-      .where('createdAt', '<=', end)
-      .orderBy('createdAt', 'desc')
-      .get()
-
-    const entries = snap.docs.map(docToApi)
-    const totalCashToday = entries.reduce((sum, e) => sum + (e.totalAmount || 0), 0)
-    const entryCount = entries.length
-    const lastEntry = entries[0] || null
-
-    return res.status(200).json({
-      success: true,
-      data: { totalCashToday, entryCount, lastEntry, entries },
-    })
-  }
 
   const entries = await CashEntry.find({
     user: req.user.id,

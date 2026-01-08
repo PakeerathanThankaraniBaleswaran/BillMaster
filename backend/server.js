@@ -1,14 +1,14 @@
 import dotenv from 'dotenv'
 import app from './app.js'
-import { initDataStore } from './config/datastore.js'
+import connectDB from './config/db.js'
 
 // Load environment variables
 dotenv.config()
 
 const PORT = process.env.PORT || 5000
 
-// Initialize datastore (MongoDB or Firebase)
-await initDataStore()
+// Connect to MongoDB
+connectDB()
 
 // Start server
 const server = app.listen(PORT, () => {

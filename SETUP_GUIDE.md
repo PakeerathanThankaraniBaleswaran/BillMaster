@@ -21,44 +21,11 @@ Create `backend/.env` file with the following:
 ```env
 NODE_ENV=development
 PORT=5000
-DATA_STORE=mongo
 MONGODB_URI=mongodb://localhost:27017/billmaster
 JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
 JWT_EXPIRE=30d
 CORS_ORIGIN=http://localhost:3000
 ```
-
-### ✅ Choose Your Data Store (MongoDB OR Firebase)
-
-This project now supports two datastores:
-
-1) **MongoDB** (default)
-- Set `DATA_STORE=mongo`
-- Use `MONGODB_URI=...`
-
-2) **Firebase Firestore**
-- Set `DATA_STORE=firebase`
-- Provide a Firebase Admin **service account**
-
-### Firebase (Firestore) Backend Configuration
-If you want Firebase instead of MongoDB, set these in `backend/.env`:
-
-```env
-DATA_STORE=firebase
-
-# Option A (recommended): Path to service account JSON on disk
-FIREBASE_SERVICE_ACCOUNT_PATH=/absolute/path/to/serviceAccountKey.json
-
-# Option B: Inline JSON string (escape newlines properly)
-# FIREBASE_SERVICE_ACCOUNT={"type":"service_account",...}
-
-# Optional (usually not needed if service account has project_id)
-# FIREBASE_PROJECT_ID=your-firebase-project-id
-```
-
-Notes:
-- Firestore uses collections: `users`, `companies`, `customers`, `products`, `inventoryItems`, `cashEntries`, `invoices`.
-- In Firebase mode, you do **NOT** need MongoDB running.
 
 **Note:** 
 - For MongoDB Atlas, use: `mongodb+srv://username:password@cluster.mongodb.net/billmaster`
@@ -79,8 +46,6 @@ VITE_API_URL=http://localhost:5000/api
 ## 🗄️ Step 3: Start MongoDB
 
 Make sure MongoDB is running on your system:
-
-If you are using `DATA_STORE=firebase`, you can skip this step.
 
 **Local MongoDB:**
 ```bash
