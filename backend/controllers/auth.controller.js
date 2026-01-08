@@ -2,12 +2,68 @@ import User from '../models/User.model.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { ErrorResponse } from '../utils/errorResponse.js'
 import jwt from 'jsonwebtoken'
+import bcrypt from 'bcryptjs'
+import { isFirebase } from '../services/datastore.js'
+import { collection, docToApi, nowTimestamp } from '../services/firestore.js'
+
+const sanitizeUserForResponse = (user) => {
+  if (!user) return user
+  const out = { ...user }
+  delete out.password
+  delete out.passwordHash
+  return out
+}
+
+const signToken = (id) =>
+  jwt.sign({ id }, process.env.JWT_SECRET || 'default-secret', {
+    expiresIn: process.env.JWT_EXPIRE || '30d',
+  })
+
+const normalizeEmail = (email) => String(email || '').trim().toLowerCase()
 
 // @desc    Register a new user
 // @route   POST /api/auth/register
 // @access  Public
 export const register = asyncHandler(async (req, res, next) => {
   const { name, email, password } = req.body
+
+  if (isFirebase()) {
+    const emailLower = normalizeEmail(email)
+    if (!name) return next(new ErrorResponse('Please provide a name', 400))
+    if (!emailLower) return next(new ErrorResponse('Please provide an email', 400))
+    if (!password || String(password).length < 6) {
+      return next(new ErrorResponse('Password must be at least 6 characters', 400))
+    }
+
+    const existingSnap = await collection('users').where('email', '==', emailLower).limit(1).get()
+    if (!existingSnap.empty) {
+      return next(new ErrorResponse('User already exists with this email', 400))
+    }
+
+    const passwordHash = await bcrypt.hash(String(password), 12)
+
+    const ref = await collection('users').add({
+      name: String(name).trim(),
+      email: emailLower,
+      passwordHash,
+      isOAuthUser: false,
+      oAuthProvider: null,
+      role: 'user',
+      isActive: true,
+      createdAt: nowTimestamp(),
+      updatedAt: nowTimestamp(),
+    })
+
+    const created = await ref.get()
+    const user = sanitizeUserForResponse(docToApi(created))
+    const token = signToken(user._id)
+
+    return res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      data: { user, token },
+    })
+  }
 
   // Check if user already exists
   const existingUser = await User.findOne({ email })
@@ -23,11 +79,7 @@ export const register = asyncHandler(async (req, res, next) => {
   })
 
   // Generate JWT token
-  const token = jwt.sign(
-    { id: user._id },
-    process.env.JWT_SECRET || 'default-secret',
-    { expiresIn: process.env.JWT_EXPIRE || '30d' }
-  )
+  const token = signToken(user._id)
 
   res.status(201).json({
     success: true,
@@ -44,6 +96,41 @@ export const register = asyncHandler(async (req, res, next) => {
 // @access  Public
 export const login = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body
+
+  if (isFirebase()) {
+    const emailLower = normalizeEmail(email)
+    if (!emailLower || !password) {
+      return next(new ErrorResponse('Please provide email and password', 400))
+    }
+
+    const snap = await collection('users').where('email', '==', emailLower).limit(1).get()
+    if (snap.empty) return next(new ErrorResponse('Invalid credentials', 401))
+
+    const doc = snap.docs[0]
+    const user = docToApi(doc)
+
+    if (!user.isActive) {
+      return next(new ErrorResponse('Account is deactivated', 401))
+    }
+
+    if (user.isOAuthUser) {
+      return next(new ErrorResponse('Please sign in with Google', 401))
+    }
+
+    const ok = await bcrypt.compare(String(password), String(user.passwordHash || ''))
+    if (!ok) return next(new ErrorResponse('Invalid credentials', 401))
+
+    const token = signToken(user._id)
+
+    return res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        user: sanitizeUserForResponse(user),
+        token,
+      },
+    })
+  }
 
   // Validate email and password
   if (!email || !password) {
@@ -69,11 +156,7 @@ export const login = asyncHandler(async (req, res, next) => {
   }
 
   // Generate JWT token
-  const token = jwt.sign(
-    { id: user._id },
-    process.env.JWT_SECRET || 'default-secret',
-    { expiresIn: process.env.JWT_EXPIRE || '30d' }
-  )
+  const token = signToken(user._id)
 
   res.status(200).json({
     success: true,
@@ -89,6 +172,16 @@ export const login = asyncHandler(async (req, res, next) => {
 // @route   GET /api/auth/profile
 // @access  Private
 export const getProfile = asyncHandler(async (req, res, next) => {
+  if (isFirebase()) {
+    const snap = await collection('users').doc(String(req.user.id)).get()
+    if (!snap.exists) return next(new ErrorResponse('User not found', 404))
+    const user = sanitizeUserForResponse(docToApi(snap))
+    return res.status(200).json({
+      success: true,
+      data: { user },
+    })
+  }
+
   // req.user is set by auth middleware
   const user = await User.findById(req.user.id)
 
@@ -184,32 +277,64 @@ export const googleCallback = asyncHandler(async (req, res, next) => {
     }
 
     // Step 3: Find or create user in database
-    let user = await User.findOne({ email })
+    const emailLower = normalizeEmail(email)
+    let userId
 
-    if (!user) {
-      // Create new user for OAuth (no password required)
-      user = await User.create({
-        name: name || email.split('@')[0],
-        email,
-        isOAuthUser: true,
-        oAuthProvider: 'google',
-        password: undefined, // No password for OAuth users
-      })
-    } else {
-      // Update existing user if they don't have OAuth info
-      if (!user.isOAuthUser) {
-        user.isOAuthUser = true
-        user.oAuthProvider = 'google'
-        await user.save()
+    if (isFirebase()) {
+      const snap = await collection('users').where('email', '==', emailLower).limit(1).get()
+
+      if (snap.empty) {
+        const ref = await collection('users').add({
+          name: String(name || emailLower.split('@')[0]).trim(),
+          email: emailLower,
+          avatarUrl: picture || '',
+          isOAuthUser: true,
+          oAuthProvider: 'google',
+          role: 'user',
+          isActive: true,
+          createdAt: nowTimestamp(),
+          updatedAt: nowTimestamp(),
+        })
+        userId = ref.id
+      } else {
+        const existing = snap.docs[0]
+        userId = existing.id
+        const existingUser = docToApi(existing)
+        if (!existingUser.isOAuthUser || existingUser.oAuthProvider !== 'google') {
+          await collection('users').doc(existing.id).update({
+            isOAuthUser: true,
+            oAuthProvider: 'google',
+            avatarUrl: picture || existingUser.avatarUrl || '',
+            updatedAt: nowTimestamp(),
+          })
+        }
       }
+    } else {
+      let user = await User.findOne({ email: emailLower })
+
+      if (!user) {
+        // Create new user for OAuth (no password required)
+        user = await User.create({
+          name: name || emailLower.split('@')[0],
+          email: emailLower,
+          isOAuthUser: true,
+          oAuthProvider: 'google',
+          password: undefined, // No password for OAuth users
+        })
+      } else {
+        // Update existing user if they don't have OAuth info
+        if (!user.isOAuthUser) {
+          user.isOAuthUser = true
+          user.oAuthProvider = 'google'
+          await user.save()
+        }
+      }
+
+      userId = user._id
     }
 
     // Step 4: Generate JWT token
-    const token = jwt.sign(
-      { id: user._id },
-      process.env.JWT_SECRET || 'default-secret',
-      { expiresIn: process.env.JWT_EXPIRE || '30d' }
-    )
+    const token = signToken(userId)
 
     // Step 5: Redirect to frontend with token
     res.redirect(`${frontendUrl}/auth/callback?token=${token}&provider=google`)

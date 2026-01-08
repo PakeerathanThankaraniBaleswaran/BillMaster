@@ -2,8 +2,26 @@ import mongoose from 'mongoose'
 import Invoice from '../models/Invoice.model.js'
 import CashEntry from '../models/CashEntry.model.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
+import { isFirebase } from '../services/datastore.js'
+import { collection, docToApi } from '../services/firestore.js'
 
 const TZ = 'Asia/Colombo'
+
+const dayFmt = new Intl.DateTimeFormat('en-CA', {
+  timeZone: TZ,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+const monthFmt = new Intl.DateTimeFormat('en-CA', {
+  timeZone: TZ,
+  year: 'numeric',
+  month: '2-digit',
+})
+
+const toDayStringTZ = (d) => dayFmt.format(d)
+const toMonthStringTZ = (d) => monthFmt.format(d)
 
 const parseDate = (value, fallback) => {
   if (!value) return fallback
@@ -68,7 +86,202 @@ const monthRange = (endDate, months) => {
   return { start: startMonthDate, months: out }
 }
 
+const dayRangeTZ = (from, to) => {
+  const days = []
+  let cur = startOfDay(from)
+  const end = startOfDay(to)
+  while (cur <= end) {
+    days.push(toDayStringTZ(cur))
+    cur = new Date(cur)
+    cur.setDate(cur.getDate() + 1)
+  }
+  return days
+}
+
 export const getReports = asyncHandler(async (req, res) => {
+  if (isFirebase()) {
+    const userId = String(req.user.id)
+
+    const now = new Date()
+    const defaultFrom = monthStart(now)
+    const defaultTo = endOfDay(now)
+
+    const from = startOfDay(parseDate(req.query.from, defaultFrom))
+    const to = endOfDay(parseDate(req.query.to, defaultTo))
+
+    const months = Math.min(24, Math.max(1, Number(req.query.months || 12) || 12))
+    const { start: monthAggStart, months: monthLabels } = monthRange(to, months)
+
+    const [cashSnap, invoiceSnap, invoiceMonthSnap, cashMonthSnap] = await Promise.all([
+      collection('cashEntries')
+        .where('user', '==', userId)
+        .where('createdAt', '>=', from)
+        .where('createdAt', '<=', to)
+        .orderBy('createdAt', 'asc')
+        .get(),
+      collection('invoices')
+        .where('user', '==', userId)
+        .where('invoiceDate', '>=', from)
+        .where('invoiceDate', '<=', to)
+        .orderBy('invoiceDate', 'asc')
+        .get(),
+      collection('invoices')
+        .where('user', '==', userId)
+        .where('invoiceDate', '>=', monthAggStart)
+        .where('invoiceDate', '<=', to)
+        .orderBy('invoiceDate', 'asc')
+        .get(),
+      collection('cashEntries')
+        .where('user', '==', userId)
+        .where('createdAt', '>=', monthAggStart)
+        .where('createdAt', '<=', to)
+        .orderBy('createdAt', 'asc')
+        .get(),
+    ])
+
+    const cashEntries = cashSnap.docs.map(docToApi)
+    const invoices = invoiceSnap.docs.map(docToApi)
+
+    const days = dayRangeTZ(from, to)
+
+    const cashDayMap = new Map()
+    for (const e of cashEntries) {
+      const date = e?.createdAt?.toDate ? e.createdAt.toDate() : new Date(e.createdAt)
+      const day = toDayStringTZ(date)
+      const type = e?.type === 'out' ? 'out' : 'in'
+      const existing = cashDayMap.get(day) || { cashIn: 0, cashOut: 0 }
+      if (type === 'out') existing.cashOut += Number(e.totalAmount || 0)
+      else existing.cashIn += Number(e.totalAmount || 0)
+      cashDayMap.set(day, existing)
+    }
+
+    const invoiceDayMap = new Map()
+    const topBillMap = new Map()
+    const topProductAgg = new Map() // day -> Map(name -> {qty, amount})
+
+    const paymentModeAgg = new Map()
+
+    for (const inv of invoices) {
+      const dt = inv?.invoiceDate?.toDate ? inv.invoiceDate.toDate() : new Date(inv.invoiceDate)
+      const day = toDayStringTZ(dt)
+
+      const existing = invoiceDayMap.get(day) || { salesTotal: 0, billCount: 0 }
+      existing.salesTotal += Number(inv.total || 0)
+      existing.billCount += 1
+      invoiceDayMap.set(day, existing)
+
+      const existingTop = topBillMap.get(day)
+      if (!existingTop || Number(inv.total || 0) > Number(existingTop.total || 0)) {
+        topBillMap.set(day, { invoiceNumber: inv.invoiceNumber || '', total: Number(inv.total || 0) })
+      }
+
+      const mode = String(inv.paymentMode || 'cash')
+      const pm = paymentModeAgg.get(mode) || { amount: 0, count: 0 }
+      pm.amount += Number(inv.total || 0)
+      pm.count += 1
+      paymentModeAgg.set(mode, pm)
+
+      const items = Array.isArray(inv.items) ? inv.items : []
+      if (!topProductAgg.has(day)) topProductAgg.set(day, new Map())
+      const byName = topProductAgg.get(day)
+      for (const it of items) {
+        const name = String(it?.description || '').trim()
+        if (!name) continue
+        const row = byName.get(name) || { qty: 0, amount: 0 }
+        row.qty += Number(it.quantity || 0)
+        row.amount += Number(it.total || 0)
+        byName.set(name, row)
+      }
+    }
+
+    const topProductMap = new Map()
+    for (const [day, byName] of topProductAgg.entries()) {
+      let best = null
+      for (const [name, row] of byName.entries()) {
+        if (!best || row.qty > best.qty) best = { name, qty: row.qty, amount: row.amount }
+      }
+      if (best) topProductMap.set(day, best)
+    }
+
+    const daily = days.map((day) => {
+      const cash = cashDayMap.get(day) || { cashIn: 0, cashOut: 0 }
+      const inv = invoiceDayMap.get(day) || { salesTotal: 0, billCount: 0 }
+      const topBill = topBillMap.get(day) || null
+      const topProd = topProductMap.get(day) || null
+
+      const cashIn = Number(cash.cashIn || 0)
+      const cashOut = Number(cash.cashOut || 0)
+      const salesTotal = Number(inv.salesTotal || 0)
+
+      return {
+        day,
+        cashIn,
+        cashOut,
+        netCash: cashIn - cashOut,
+        salesTotal,
+        billCount: Number(inv.billCount || 0),
+        topBill: topBill ? { invoiceNumber: topBill.invoiceNumber || '', total: Number(topBill.total || 0) } : null,
+        topProduct: topProd ? { name: topProd.name || '', qty: Number(topProd.qty || 0), amount: Number(topProd.amount || 0) } : null,
+      }
+    })
+
+    const cashMonthlyEntries = cashMonthSnap.docs.map(docToApi)
+    const invoiceMonthlyEntries = invoiceMonthSnap.docs.map(docToApi)
+
+    const cashMonthMap = new Map()
+    for (const e of cashMonthlyEntries) {
+      const date = e?.createdAt?.toDate ? e.createdAt.toDate() : new Date(e.createdAt)
+      const month = toMonthStringTZ(date)
+      const type = e?.type === 'out' ? 'out' : 'in'
+      const existing = cashMonthMap.get(month) || { cashIn: 0, cashOut: 0 }
+      if (type === 'out') existing.cashOut += Number(e.totalAmount || 0)
+      else existing.cashIn += Number(e.totalAmount || 0)
+      cashMonthMap.set(month, existing)
+    }
+
+    const invoiceMonthMap = new Map()
+    for (const inv of invoiceMonthlyEntries) {
+      const dt = inv?.invoiceDate?.toDate ? inv.invoiceDate.toDate() : new Date(inv.invoiceDate)
+      const month = toMonthStringTZ(dt)
+      const existing = invoiceMonthMap.get(month) || { salesTotal: 0, billCount: 0 }
+      existing.salesTotal += Number(inv.total || 0)
+      existing.billCount += 1
+      invoiceMonthMap.set(month, existing)
+    }
+
+    const monthly = monthLabels.map((m) => {
+      const cash = cashMonthMap.get(m) || { cashIn: 0, cashOut: 0 }
+      const inv = invoiceMonthMap.get(m) || { salesTotal: 0, billCount: 0 }
+
+      const cashIn = Number(cash.cashIn || 0)
+      const cashOut = Number(cash.cashOut || 0)
+      const salesTotal = Number(inv.salesTotal || 0)
+
+      return {
+        month: m,
+        cashIn,
+        cashOut,
+        netCash: cashIn - cashOut,
+        salesTotal,
+        billCount: Number(inv.billCount || 0),
+      }
+    })
+
+    const paymentModes = Array.from(paymentModeAgg.entries())
+      .map(([mode, row]) => ({ mode, amount: Number(row.amount || 0), count: Number(row.count || 0) }))
+      .sort((a, b) => b.amount - a.amount)
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        range: { from, to },
+        daily,
+        monthly,
+        paymentModes,
+      },
+    })
+  }
+
   const userId = new mongoose.Types.ObjectId(req.user.id)
 
   const now = new Date()

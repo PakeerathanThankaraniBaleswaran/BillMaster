@@ -2,6 +2,8 @@
 
 A full-stack MERN (MongoDB, Express, React, Node.js) application for managing invoices and billing.
 
+This backend also supports **Firebase Firestore** as an alternative datastore.
+
 ## 🚀 Project Structure
 
 This project follows a clean, scalable architecture with separate frontend and backend:
@@ -18,6 +20,7 @@ Before you begin, ensure you have the following installed:
 - **Node.js** (v18 or higher)
 - **npm** or **yarn**
 - **MongoDB** (local installation or MongoDB Atlas account)
+- **OR** a **Firebase project** + **Firestore** enabled (and a service account for the backend)
 
 ## 🛠️ Installation & Setup
 
@@ -49,10 +52,21 @@ cp .env.example .env
 ```env
 NODE_ENV=development
 PORT=5000
+DATA_STORE=mongo
 MONGODB_URI=mongodb://localhost:27017/billmaster
 JWT_SECRET=your-super-secret-jwt-key
 JWT_EXPIRE=30d
 CORS_ORIGIN=http://localhost:3000
+```
+
+### Firebase Firestore (optional)
+To use Firestore instead of MongoDB, set:
+
+```env
+DATA_STORE=firebase
+FIREBASE_SERVICE_ACCOUNT_PATH=/absolute/path/to/serviceAccountKey.json
+# or FIREBASE_SERVICE_ACCOUNT={"type":"service_account",...}
+# FIREBASE_PROJECT_ID=your-project-id (optional)
 ```
 
 ### 3. Frontend Setup
